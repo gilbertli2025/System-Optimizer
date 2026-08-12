@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Windows Services Optimizer"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="Windows Services Optimizer"
+           UpgradeCode="6B70DE5B-9CF0-477F-8D2D-CEAC9A235222">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="Windows Services Optimizer"
+             Description="Windows Services Optimizer - safely disables, restores and verifies non-critical Windows services."
+             Keywords="windows services optimize speed" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Windows Services Optimizer is already installed." />
+
+    <Media Id="1" Cabinet="wso.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Windows Services Optimizer">
+          <Component Id="GuiExe" Guid="*">
+            <File Id="GuiExe"
+                  Name="WinServiceOptimizer-GUI.exe"
+                  Source="C:\Users\admin\Desktop\WinServiceOptimizer-GUI.exe"
+                  KeyPath="yes" />
+          </Component>
+          <Component Id="ConsoleExe" Guid="*">
+            <File Id="ConsoleExe"
+                  Name="Windows-Services-Optimizer.exe"
+                  Source="C:\Users\admin\Desktop\Windows-Services-Optimizer.exe"
+                  KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppShortcuts" Name="Windows Services Optimizer">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="AppShortcut"
+                      Name="Windows Services Optimizer"
+                      Description="Safely disable non-critical Windows services"
+                      Target="[INSTALLFOLDER]WinServiceOptimizer-GUI.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveAppShortcuts" On="uninstall" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\Windows Services Optimizer"
+                           Name="installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="Windows Services Optimizer" Level="1">
+      <ComponentRef Id="GuiExe" />
+      <ComponentRef Id="ConsoleExe" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+  </Product>
+</Wix>

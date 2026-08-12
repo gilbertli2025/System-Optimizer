@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="System Optimizer"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="System Optimizer"
+           UpgradeCode="A175C7C7-686B-4E89-9321-4745312160A4">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="System Optimizer"
+             Description="System Optimizer - one GUI to tune performance, harden security, and restore everything to defaults."
+             Keywords="optimize security services hardening windows" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of System Optimizer is already installed." />
+
+    <Media Id="1" Cabinet="so.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="System Optimizer">
+          <Component Id="AppExe" Guid="*">
+            <File Id="AppExe"
+                  Name="SystemOptimizer.exe"
+                  Source="C:\Users\admin\Desktop\SystemOptimizer.exe"
+                  KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppShortcuts" Name="System Optimizer">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="AppShortcut"
+                      Name="System Optimizer"
+                      Description="Tune performance and harden security in one GUI"
+                      Target="[INSTALLFOLDER]SystemOptimizer.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveAppShortcuts" On="uninstall" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\System Optimizer"
+                           Name="installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="System Optimizer" Level="1">
+      <ComponentRef Id="AppExe" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+  </Product>
+</Wix>

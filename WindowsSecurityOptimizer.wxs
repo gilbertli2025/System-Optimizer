@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Windows Security Optimizer"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="Windows Services Optimizer"
+           UpgradeCode="9C649404-61BA-4F40-9DB0-E8935D365304">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="Windows Services Optimizer"
+             Description="Windows Security Optimizer - hardens a PC against malware: Defender cloud protection, firewall inbound blocking, scheduled scans and auto-lock."
+             Keywords="windows security defender firewall harden malware" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Windows Security Optimizer is already installed." />
+
+    <Media Id="1" Cabinet="wso.cab" EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Windows Security Optimizer">
+          <Component Id="GuiExe" Guid="*">
+            <File Id="GuiExe"
+                  Name="WinSecurityOptimizer-GUI.exe"
+                  Source="C:\Users\admin\Desktop\WinSecurityOptimizer-GUI.exe"
+                  KeyPath="yes" />
+          </Component>
+          <Component Id="ConsoleExe" Guid="*">
+            <File Id="ConsoleExe"
+                  Name="Windows-Security-Optimizer.exe"
+                  Source="C:\Users\admin\Desktop\Windows-Security-Optimizer.exe"
+                  KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppShortcuts" Name="Windows Security Optimizer">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="AppShortcut"
+                      Name="Windows Security Optimizer"
+                      Description="Harden a Windows PC against malware"
+                      Target="[INSTALLFOLDER]WinSecurityOptimizer-GUI.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveAppShortcuts" On="uninstall" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\Windows Security Optimizer"
+                           Name="installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="MainFeature" Title="Windows Security Optimizer" Level="1">
+      <ComponentRef Id="GuiExe" />
+      <ComponentRef Id="ConsoleExe" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+  </Product>
+</Wix>
