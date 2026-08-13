@@ -37,6 +37,8 @@ $secDir        = "$env:ProgramData\WinSecOpt"
 $secBackupFile = Join-Path $secDir "backup.json"
 $secReviewFile = Join-Path $secDir "security-review.txt"
 
+$maintBackupFile = Join-Path (Join-Path $env:ProgramData "SystemOptimizer") "maintenance-backup.json"
+
 $logFile       = Join-Path (Join-Path $env:ProgramData "SystemOptimizer") "unified.log"
 
 # ---------- data ----------
@@ -75,6 +77,22 @@ $secItems = @(
     @{ id='autorun';   text='8.  Disable AutoRun on removable drives' },
     @{ id='lockout';   text='9.  Account lockout (5 tries / 15 min)' },
     @{ id='officewsh'; text='10. Block Office macros from internet + disable Script Host' }
+)
+
+$maintItems = @(
+    @{ id='cleantemp';    text='1.  Clear temporary files (user + Windows temp)' },
+    @{ id='wucleanup';    text='2.  Windows Update cleanup (StartComponentCleanup)' },
+    @{ id='trimssd';      text='3.  Re-trim SSD (Optimize-Volume C:)' },
+    @{ id='flushdns';     text='4.  Flush DNS cache' },
+    @{ id='gamedvr';      text='5.  Disable Game DVR background recording' },
+    @{ id='storagesense'; text='6.  Enable Storage Sense (auto temp + recycle-bin cleanup)' },
+    @{ id='recyclebin';   text='7.  Empty Recycle Bin' },
+    @{ id='browscache';   text='8.  Clear Edge + Chrome browser cache' },
+    @{ id='startupapps';  text='9.  Disable third-party startup apps (current user)' },
+    @{ id='vfxperf';      text='10. Visual effects -> best performance' },
+    @{ id='faststartup';  text='11. Enable Fast Startup (faster boot)' },
+    @{ id='tips';         text='12. Disable Windows tips & suggestions' },
+    @{ id='powerplan';    text='13. Power plan -> High performance (battery drains faster)' }
 )
 
 $helpText = @"
@@ -199,19 +217,56 @@ Tick the hardening items you want, then "Apply selected".
     Restore checked   : revert ONLY the hardening items you currently have
              ticked. Handy if one setting (e.g. browser hardening or the
              firewall) caused a problem and you want to undo just that.
-    Security review   : print a snapshot report of this PC's security state.
+     Security review   : print a snapshot report of this PC's security state.
+
+------------------------------------------------------------------
+TAB 3 - MAINTENANCE & CLEANUP
+------------------------------------------------------------------
+Items 1-6 are safe and recommended; 7-10 are optional and off by default.
+  1. Clear temporary files       - frees space (user + Windows temp).
+  2. Windows Update cleanup      - removes old superseded update files
+                                   (Dism StartComponentCleanup; can be slow).
+  3. Re-trim SSD                 - keeps an SSD fast (C:).
+  4. Flush DNS cache             - clears stale DNS lookups.
+  5. Disable Game DVR            - stops background game recording (frees RAM).
+  6. Enable Storage Sense        - Windows auto-cleans temp + recycle bin.
+           OFF by default: Windows may also auto-delete older System Restore
+           points and Downloads as part of its cleanup. Turn this ON only if
+           you are OK with that.
+  7. Empty Recycle Bin           - frees space but permanently deletes files.
+  8. Clear Edge + Chrome cache   - frees space; first page loads slower.
+  9. Disable third-party startup apps (current user) - faster boot; reversible.
+  10. Visual effects -> best performance - minor on new PCs, helps older ones.
+  11. Enable Fast Startup - faster boot (note: on laptops, shut down uses hybrid).
+  12. Disable Windows tips & suggestions - fewer notifications; reversible.
+  13. Power plan -> High performance - faster, but battery drains faster on laptops.
+
+  Buttons:
+    Run selected cleanup : run the ticked items.
+    Restore settings     : revert the reversible items (5,6,9,10).
+    Cleanup report       : show current maintenance state.
+
+------------------------------------------------------------------
+TAB 4 - SYSTEM REPAIR
+------------------------------------------------------------------
+Repair damaged Windows files or the disk. These can take a long time,
+so they are NOT part of "Apply ALL" - run them here only when needed.
+  sfc /scannow           : verifies and repairs system files (5-10 min).
+  DISM /restorehealth    : repairs the Windows image (10-20+ min, needs net).
+  chkdsk C: /f           : checks the disk for errors - REQUIRES A RESTART.
 
 ------------------------------------------------------------------
 MASTER BUTTONS (bottom)
 ------------------------------------------------------------------
-  Apply ALL selected       : applies ticked services AND security items.
+  Apply ALL selected       : applies ticked services, security AND cleanup.
   Restore ALL to defaults  : reverts everything to its original state.
-  Full review / verify     : runs the services verify + full security review.
+  Full review / verify     : runs the services verify + security + cleanup check.
   Help                     : this help.
 
   Restore intentionally does NOT undo two things (for safety):
     - BitLocker: the drive stays encrypted.
     - System Restore protection: stays enabled so you keep your safety net.
+  Cleanup actions (1-4, 7-8) free space and are not reverted by Restore.
 
 ------------------------------------------------------------------
 WHERE THINGS ARE STORED
@@ -236,6 +291,8 @@ NOTES FOR A FRESH WINDOWS 11 PC
 $script:logBox = $null
 $script:svcChecks = [System.Collections.ArrayList]@()
 $script:secChecks = [System.Collections.ArrayList]@()
+$script:maintChecks = [System.Collections.ArrayList]@()
+$script:repairChecks = [System.Collections.ArrayList]@()
 
 function Write-Log {
     param([string]$msg)
@@ -667,6 +724,292 @@ function Restore-SecurityItems {
     Write-Log "Restore checked finished ($restored item(s))."
 }
 
+# ================= MAINTENANCE =================
+function Get-MaintBackup {
+    if (Test-Path $maintBackupFile) { try { return @(Get-Content $maintBackupFile -Raw | ConvertFrom-Json) } catch { return @() } }
+    return @()
+}
+
+function Save-MaintBackup {
+    param([string]$name, [string]$value)
+    $rows = @(Get-MaintBackup | Where-Object { $_.Name -ne $name })
+    $rows += [PSCustomObject]@{ Name = $name; Value = $value }
+    New-Item -ItemType Directory -Path (Split-Path $maintBackupFile) -Force | Out-Null
+    $rows | ConvertTo-Json | Set-Content -Path $maintBackupFile -Encoding UTF8
+}
+
+function Invoke-CleanTemp {
+    $targets = @( (Join-Path $env:TEMP '*'), (Join-Path $env:WINDIR 'Temp\*') )
+    $count = 0
+    foreach ($t in $targets) {
+        Get-ChildItem -Path $t -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop; $count++ } catch { }
+        }
+    }
+    Write-Log ("Cleared temp files ($count items removed).")
+}
+
+function Invoke-WUCleanup {
+    Write-Log "Running Windows Update cleanup (StartComponentCleanup) - can take several minutes..."
+    $out = & dism.exe /Online /Cleanup-Image /StartComponentCleanup 2>&1
+    ($out | Out-String).Trim() -split "`r?`n" | Where-Object { $_ } | ForEach-Object { Write-Log ("    " + $_) }
+    Write-Log "Windows Update cleanup done."
+}
+
+function Invoke-TrimSSD {
+    try { Optimize-Volume -DriveLetter C -ReTrim -ErrorAction Stop | Out-Null; Write-Log "SSD re-trimmed (C:)." }
+    catch { Write-Log ("WARN trim: " + $_.Exception.Message) }
+}
+
+function Invoke-FlushDNS {
+    & ipconfig.exe /flushdns | Out-Null
+    Write-Log "DNS cache flushed."
+}
+
+function Invoke-DisableGameDVR {
+    $k = 'HKCU:\System\GameConfigStore'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $old = (Get-ItemProperty $k -Name GameDVR_Enabled -ErrorAction SilentlyContinue).GameDVR_Enabled
+    if ($old -eq 0) { Write-Log "SKIP Game DVR: already disabled."; return }
+    Save-MaintBackup 'gamedvr' ("$old")
+    Set-ItemProperty $k -Name GameDVR_Enabled -Value 0 -Type DWord
+    Write-Log "ENABLED: Game DVR background recording disabled."
+}
+
+function Invoke-EnableStorageSense {
+    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $old01 = (Get-ItemProperty $k -Name '01' -ErrorAction SilentlyContinue).'01'
+    if ($old01 -eq 1) { Write-Log "SKIP Storage Sense: already enabled."; return }
+    Save-MaintBackup 'storagesense' (@{ enabled = "$old01" } | ConvertTo-Json -Compress)
+    Set-ItemProperty $k -Name '01' -Value 1 -Type DWord
+    Set-ItemProperty $k -Name '04' -Value 1 -Type DWord
+    Write-Log "ENABLED: Storage Sense (auto temp + recycle-bin cleanup)."
+}
+
+function Invoke-EmptyRecycleBin {
+    Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+    Write-Log "Emptied Recycle Bin."
+}
+
+function Invoke-ClearBrowserCache {
+    $caches = @(
+        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache",
+        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache",
+        "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache"
+    )
+    $n = 0
+    foreach ($c in $caches) {
+        if (Test-Path $c) {
+            Get-ChildItem "$c\*" -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                try { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction Stop; $n++ } catch { }
+            }
+        }
+    }
+    Write-Log ("Cleared browser cache ($n items).")
+}
+
+function Invoke-StartupCleanup {
+    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $hklm = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
+    $backed = @{}
+    if (Test-Path $k) { foreach ($v in (Get-Item $k).Property) { $backed[$k + '\' + $v] = (Get-ItemProperty $k -Name $v).$v } }
+    Save-MaintBackup 'startupapps' ($backed | ConvertTo-Json -Compress)
+    $disabled = 0
+    if (Test-Path $k) {
+        foreach ($v in @(Get-Item $k).Property) {
+            try {
+                $data = (Get-ItemProperty $k -Name $v).$v
+                Set-ItemProperty $k -Name ($v + '.disabled') -Value $data
+                Remove-ItemProperty $k -Name $v -ErrorAction Stop
+                Write-Log ("Disabled startup: $v (current user)")
+                $disabled++
+            } catch { Write-Log ("WARN disable startup $v : " + $_.Exception.Message) }
+        }
+    }
+    if (Test-Path $hklm) {
+        Write-Log ("All-users (HKLM) startup entries (listed, NOT disabled): " + ((Get-Item $hklm).Property -join ', '))
+    }
+    Write-Log "Startup apps cleanup done ($disabled disabled, reversible)."
+}
+
+function Invoke-VfxPerformance {
+    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $old = (Get-ItemProperty $k -Name VisualFXSetting -ErrorAction SilentlyContinue).VisualFXSetting
+    if ($old -eq 2) { Write-Log "SKIP visual effects: already best performance."; return }
+    Save-MaintBackup 'vfxperf' ("$old")
+    Set-ItemProperty $k -Name VisualFXSetting -Value 2 -Type DWord
+    Write-Log "ENABLED: visual effects set to best performance."
+}
+
+function Invoke-EnableFastStartup {
+    $k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $old = (Get-ItemProperty $k -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled
+    if ($old -eq 1) { Write-Log "SKIP Fast Startup: already enabled."; return }
+    Save-MaintBackup 'faststartup' ("$old")
+    Set-ItemProperty $k -Name HiberbootEnabled -Value 1 -Type DWord
+    Write-Log "ENABLED: Fast Startup (faster boot)."
+}
+
+function Invoke-DisableTips {
+    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+    New-Item -ItemType Directory -Path $k -Force | Out-Null
+    $names = @('SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled')
+    $old = @{}; $already = $true
+    foreach ($n in $names) {
+        $cur = (Get-ItemProperty $k -Name $n -ErrorAction SilentlyContinue).$n
+        $old[$n] = "$cur"
+        if ($cur -ne 0) { $already = $false }
+    }
+    if ($already) { Write-Log "SKIP tips: already disabled."; return }
+    Save-MaintBackup 'tips' ($old | ConvertTo-Json -Compress)
+    foreach ($n in $names) { Set-ItemProperty $k -Name $n -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+    Write-Log "ENABLED: Windows tips & suggestions disabled."
+}
+
+function Invoke-PowerHighPerf {
+    $out = (powercfg /getactivescheme)
+    $m = [regex]::Match(($out -join ' '), '([0-9a-fA-F-]{36})')
+    $oldGuid = if ($m.Success) { $m.Groups[1].Value } else { '381b4222-f694-41f0-9685-ff5bb260df2e' }
+    $highGuid = '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
+    if ($oldGuid -eq $highGuid) { Write-Log "SKIP power plan: already High performance."; return }
+    Save-MaintBackup 'powerplan' $oldGuid
+    powercfg /setactive $highGuid
+    Write-Log "ENABLED: power plan set to High performance (battery drains faster on laptops)."
+}
+
+function Run-MaintenanceItem {
+    param([string]$id)
+    switch ($id) {
+        'cleantemp'    { Invoke-CleanTemp }
+        'wucleanup'    { Invoke-WUCleanup }
+        'trimssd'      { Invoke-TrimSSD }
+        'flushdns'     { Invoke-FlushDNS }
+        'gamedvr'      { Invoke-DisableGameDVR }
+        'storagesense' { Invoke-EnableStorageSense }
+        'recyclebin'   { Invoke-EmptyRecycleBin }
+        'browscache'   { Invoke-ClearBrowserCache }
+        'startupapps'  { Invoke-StartupCleanup }
+        'vfxperf'      { Invoke-VfxPerformance }
+        'faststartup'  { Invoke-EnableFastStartup }
+        'tips'         { Invoke-DisableTips }
+        'powerplan'    { Invoke-PowerHighPerf }
+    }
+}
+
+function Restore-Maintenance {
+    $rows = @(Get-MaintBackup)
+    if ($rows.Count -eq 0) { Write-Log "No maintenance backup - nothing to restore."; return }
+    Write-Log "=== Maintenance restore started ==="
+    foreach ($row in $rows) {
+        try {
+            switch ($row.Name) {
+                'gamedvr' {
+                    $k = 'HKCU:\System\GameConfigStore'
+                    if ($null -ne $row.Value -and $row.Value -ne '' -and $row.Value -ne 'null') { Set-ItemProperty $k -Name GameDVR_Enabled -Value ([int]$row.Value) -Type DWord -ErrorAction SilentlyContinue }
+                    else { Remove-ItemProperty $k -Name GameDVR_Enabled -ErrorAction SilentlyContinue }
+                    Write-Log "RESTORED: Game DVR"
+                }
+                'storagesense' {
+                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy'
+                    $o = $row.Value | ConvertFrom-Json
+                    if ($null -ne $o.enabled -and $o.enabled -ne '' -and $o.enabled -ne 'null') { Set-ItemProperty $k -Name '01' -Value ([int]$o.enabled) -Type DWord -ErrorAction SilentlyContinue }
+                    else { Remove-ItemProperty $k -Name '01' -ErrorAction SilentlyContinue }
+                    Write-Log "RESTORED: Storage Sense"
+                }
+                'vfxperf' {
+                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'
+                    if ($null -ne $row.Value -and $row.Value -ne '' -and $row.Value -ne 'null') { Set-ItemProperty $k -Name VisualFXSetting -Value ([int]$row.Value) -Type DWord -ErrorAction SilentlyContinue }
+                    else { Remove-ItemProperty $k -Name VisualFXSetting -ErrorAction SilentlyContinue }
+                    Write-Log "RESTORED: visual effects"
+                }
+                'startupapps' {
+                    $o = $row.Value | ConvertFrom-Json
+                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+                    foreach ($p in $o.PSObject.Properties) {
+                        $valname = $p.Name -replace '^.*\\', ''
+                        $orig = $valname -replace '\.disabled$', ''
+                        $data = $p.Value
+                        if ($data -and $data -ne 'null') { Set-ItemProperty $k -Name $orig -Value $data -ErrorAction SilentlyContinue }
+                        Remove-ItemProperty $k -Name $valname -ErrorAction SilentlyContinue
+                    }
+                    Write-Log "RESTORED: startup apps"
+                }
+                'faststartup' {
+                    $k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+                    if ($null -ne $row.Value -and $row.Value -ne '' -and $row.Value -ne 'null') { Set-ItemProperty $k -Name HiberbootEnabled -Value ([int]$row.Value) -Type DWord -ErrorAction SilentlyContinue }
+                    else { Remove-ItemProperty $k -Name HiberbootEnabled -ErrorAction SilentlyContinue }
+                    Write-Log "RESTORED: Fast Startup"
+                }
+                'tips' {
+                    $o = $row.Value | ConvertFrom-Json
+                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+                    foreach ($n in @('SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled')) {
+                        if ($o.PSObject.Properties[$n] -and $null -ne $o.$n -and $o.$n -ne '' -and $o.$n -ne 'null') { Set-ItemProperty $k -Name $n -Value ([int]$o.$n) -Type DWord -ErrorAction SilentlyContinue }
+                        else { Remove-ItemProperty $k -Name $n -ErrorAction SilentlyContinue }
+                    }
+                    Write-Log "RESTORED: tips & suggestions"
+                }
+                'powerplan' {
+                    if ($row.Value -and $row.Value -match '^[0-9a-fA-F-]{36}$') { powercfg /setactive $row.Value | Out-Null }
+                    Write-Log "RESTORED: power plan"
+                }
+            }
+        } catch { Write-Log "ERROR restoring $($row.Name): $($_.Exception.Message)" }
+    }
+    Remove-Item $maintBackupFile -Force -ErrorAction SilentlyContinue
+    Write-Log "=== Maintenance restore finished ==="
+}
+
+function Review-Maintenance {
+    Write-Log "-- Maintenance --"
+    $gdv = (Get-ItemProperty 'HKCU:\System\GameConfigStore' -Name GameDVR_Enabled -ErrorAction SilentlyContinue).GameDVR_Enabled
+    Write-Log ("  Game DVR        : " + $(if ($gdv -eq 0) { 'off (good)' } else { 'on (running)' }))
+    $ss = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy' -Name '01' -ErrorAction SilentlyContinue).'01'
+    Write-Log ("  Storage Sense   : " + $(if ($ss -eq 1) { 'on' } else { 'off' }))
+    $t = (Get-ChildItem $env:TEMP -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+    Write-Log ("  Temp files      : ~{0} MB in {1}" -f [math]::Round($t/1MB, 1), $env:TEMP)
+    $fs = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled
+    Write-Log ("  Fast Startup    : " + $(if ($fs -eq 1) { 'on' } else { 'off' }))
+    $active = (powercfg /getactivescheme | Out-String)
+    Write-Log ("  Power plan      : " + (($active -split ':')[-1]).Trim())
+}
+
+# ================= SYSTEM REPAIR =================
+function Invoke-SfcScan {
+    Write-Log "Running sfc /scannow - verifies and repairs system files (may take several minutes)..."
+    $out = & sfc.exe /scannow 2>&1
+    ($out | Out-String).Trim() -split "`r?`n" | Where-Object { $_ } | ForEach-Object { Write-Log ("    " + $_) }
+    Write-Log "sfc /scannow done."
+}
+
+function Invoke-DismRepair {
+    Write-Log "Running DISM /restorehealth - repairs the Windows image (can take 10-20+ min, may need internet)..."
+    $out = & dism.exe /Online /Cleanup-Image /RestoreHealth 2>&1
+    ($out | Out-String).Trim() -split "`r?`n" | Where-Object { $_ } | ForEach-Object { Write-Log ("    " + $_) }
+    Write-Log "DISM /restorehealth done."
+}
+
+function Invoke-Chkdsk {
+    Write-Log "Scheduling disk check (chkdsk C: /f) - it will run at the next restart..."
+    $out = "Y" | chkdsk.exe C: /f 2>&1
+    ($out | Out-String).Trim() -split "`r?`n" | Where-Object { $_ } | ForEach-Object { Write-Log ("    " + $_) }
+    Write-Log "chkdsk scheduled. Restart the PC to let it run."
+}
+
+function Run-RepairItem {
+    param([string]$id)
+    switch ($id) {
+        'sfc'    { Invoke-SfcScan }
+        'dism'   { Invoke-DismRepair }
+        'chkdsk' { Invoke-Chkdsk }
+    }
+}
+
 function Review-Security {
     $sb = New-Object System.Text.StringBuilder
     function Add-RevLine { param([string]$line) [void]$sb.AppendLine($line); Write-Log $line }
@@ -855,7 +1198,81 @@ $btnRestoreCheckedSec = New-Object System.Windows.Forms.Button; $btnRestoreCheck
 
 $tabSec.Controls.Add($gbSec); $tabSec.Controls.Add($btnApplySec); $tabSec.Controls.Add($btnRestoreSec); $tabSec.Controls.Add($btnReviewSec); $tabSec.Controls.Add($btnRestoreCheckedSec)
 
-$tabs.TabPages.Add($tabPerf); $tabs.TabPages.Add($tabSec)
+# --- Tab 3: Maintenance & Cleanup ---
+$tabMaint = New-Object System.Windows.Forms.TabPage
+$tabMaint.Text = 'Maintenance & Cleanup'
+$tabMaint.Padding = New-Object System.Windows.Forms.Padding(6)
+$tabMaint.AutoScroll = $true
+
+$gbMaint = New-Object System.Windows.Forms.GroupBox
+$gbMaint.Text = 'Cleanup & maintenance items (tick to run)'
+$gbMaint.Location = New-Object System.Drawing.Point(6, 6)
+$gbMaint.Size = New-Object System.Drawing.Size(852, 320)
+$flowMaint = New-Object System.Windows.Forms.FlowLayoutPanel
+$flowMaint.Location = New-Object System.Drawing.Point(10, 22)
+$flowMaint.Size = New-Object System.Drawing.Size(830, 290)
+$flowMaint.AutoScroll = $true; $flowMaint.WrapContents = $false; $flowMaint.FlowDirection = 'TopDown'
+foreach ($it in $maintItems) {
+    $safe = @('cleantemp','wucleanup','trimssd','flushdns','gamedvr','faststartup','tips') -contains $it.id
+    $cb = New-Object System.Windows.Forms.CheckBox; $cb.Text = $it.text; $cb.AutoSize = $true; $cb.Checked = $safe; $cb.Tag = $it.id
+    [void]$script:maintChecks.Add($cb); $flowMaint.Controls.Add($cb)
+}
+$gbMaint.Controls.Add($flowMaint)
+
+$btnMaintRun = New-Object System.Windows.Forms.Button; $btnMaintRun.Text = 'Run selected cleanup'; $btnMaintRun.Size = New-Object System.Drawing.Size(150,30); $btnMaintRun.Location = New-Object System.Drawing.Point(6, 336)
+$btnMaintRestore = New-Object System.Windows.Forms.Button; $btnMaintRestore.Text = 'Restore settings'; $btnMaintRestore.Size = New-Object System.Drawing.Size(140,30); $btnMaintRestore.Location = New-Object System.Drawing.Point(164, 336)
+$btnMaintReport = New-Object System.Windows.Forms.Button; $btnMaintReport.Text = 'Cleanup report'; $btnMaintReport.Size = New-Object System.Drawing.Size(130,30); $btnMaintReport.Location = New-Object System.Drawing.Point(312, 336)
+
+$lblMaintHint = New-Object System.Windows.Forms.Label
+$lblMaintHint.Text = "TIP: items 1-5 and 11-12 are safe and pre-ticked. Items 6-10 and 13 are optional/off (may delete recoverable files, change visuals/power, or auto-clean restore points). Reversible settings can be undone with 'Restore settings'."
+$lblMaintHint.Location = New-Object System.Drawing.Point(8, 374)
+$lblMaintHint.Size = New-Object System.Drawing.Size(860, 40)
+$lblMaintHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
+$tabMaint.Controls.Add($gbMaint)
+$tabMaint.Controls.Add($btnMaintRun); $tabMaint.Controls.Add($btnMaintRestore); $tabMaint.Controls.Add($btnMaintReport)
+$tabMaint.Controls.Add($lblMaintHint)
+
+$tabs.TabPages.Add($tabPerf); $tabs.TabPages.Add($tabSec); $tabs.TabPages.Add($tabMaint)
+
+# --- Tab 4: System Repair ---
+$tabRepair = New-Object System.Windows.Forms.TabPage
+$tabRepair.Text = 'System Repair'
+$tabRepair.Padding = New-Object System.Windows.Forms.Padding(6)
+$tabRepair.AutoScroll = $true
+
+$gbRepair = New-Object System.Windows.Forms.GroupBox
+$gbRepair.Text = 'Repair tools (tick to run)'
+$gbRepair.Location = New-Object System.Drawing.Point(6, 6)
+$gbRepair.Size = New-Object System.Drawing.Size(852, 200)
+$flowRepair = New-Object System.Windows.Forms.FlowLayoutPanel
+$flowRepair.Location = New-Object System.Drawing.Point(10, 22)
+$flowRepair.Size = New-Object System.Drawing.Size(830, 170)
+$flowRepair.AutoScroll = $true; $flowRepair.WrapContents = $false; $flowRepair.FlowDirection = 'TopDown'
+
+$repairItems = @(
+    @{ id='sfc';    text='Verify and repair system files (sfc /scannow)' },
+    @{ id='dism';   text='Repair the Windows image (DISM /restorehealth)' },
+    @{ id='chkdsk'; text='Check disk for errors (chkdsk C: /f) - REQUIRES RESTART' }
+)
+foreach ($it in $repairItems) {
+    $cb = New-Object System.Windows.Forms.CheckBox; $cb.Text = $it.text; $cb.AutoSize = $true
+    $cb.Checked = ($it.id -ne 'chkdsk'); $cb.Tag = $it.id
+    [void]$script:repairChecks.Add($cb); $flowRepair.Controls.Add($cb)
+}
+$gbRepair.Controls.Add($flowRepair)
+
+$btnRepairRun = New-Object System.Windows.Forms.Button; $btnRepairRun.Text = 'Run selected repairs'; $btnRepairRun.Size = New-Object System.Drawing.Size(160,30); $btnRepairRun.Location = New-Object System.Drawing.Point(6, 214)
+
+$lblRepairHint = New-Object System.Windows.Forms.Label
+$lblRepairHint.Text = "NOTE: repairs can take a long time (sfc 5-10 min, DISM 10-20+ min). chkdsk needs a restart. Repairs are NOT part of 'Apply ALL' - run them here when needed."
+$lblRepairHint.Location = New-Object System.Drawing.Point(8, 252)
+$lblRepairHint.Size = New-Object System.Drawing.Size(860, 40)
+$lblRepairHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
+$tabRepair.Controls.Add($gbRepair)
+$tabRepair.Controls.Add($btnRepairRun)
+$tabRepair.Controls.Add($lblRepairHint)
+
+$tabs.TabPages.Add($tabRepair)
 $form.Controls.Add($tabs)
 
 # --- bottom master controls ---
@@ -919,20 +1336,44 @@ $btnApplyAll.add_Click({
     $svc = @($script:svcChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
     if ($svc.Count -gt 0) { Backup-Services; Disable-Services $svc }
     foreach ($id in @($script:secChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })) { Apply-SecurityItem $id }
+    foreach ($id in @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })) { Run-MaintenanceItem $id }
     Write-Log '===== APPLY ALL finished ====='
-    [void][System.Windows.Forms.MessageBox]::Show('All selected items applied. Reboot recommended.', 'Finished', 'OK', 'Information')
+    [void][System.Windows.Forms.MessageBox]::Show('All selected items applied. A reboot is recommended.', 'Finished', 'OK', 'Information')
 })
 
 $btnRestoreAll.add_Click({
     Write-Log '===== RESTORE ALL ====='
     Restore-Services
     Restore-Security
+    Restore-Maintenance
     Write-Log '===== RESTORE ALL finished ====='
     [void][System.Windows.Forms.MessageBox]::Show('All settings restored to defaults.', 'Finished', 'OK', 'Information')
 })
 
-$btnReviewAll.add_Click({ Write-Log '--- Full review ---'; Verify-Services; Review-Security })
+$btnReviewAll.add_Click({ Write-Log '--- Full review ---'; Verify-Services; Review-Security; Review-Maintenance })
 $btnHelp.add_Click({ Show-Help })
+
+$btnMaintRun.add_Click({
+    $ids = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+    if ($ids.Count -eq 0) { [void][System.Windows.Forms.MessageBox]::Show('Tick at least one cleanup item.', 'Nothing selected', 'OK', 'Warning'); return }
+    Write-Log '=== Maintenance started ==='
+    foreach ($id in $ids) { Run-MaintenanceItem $id }
+    Write-Log '=== Maintenance finished ==='
+    [void][System.Windows.Forms.MessageBox]::Show('Cleanup finished.', 'Finished', 'OK', 'Information')
+})
+$btnMaintRestore.add_Click({ Write-Log '--- Restore maintenance ---'; Restore-Maintenance; [void][System.Windows.Forms.MessageBox]::Show('Maintenance settings restored.', 'Finished', 'OK', 'Information') })
+$btnMaintReport.add_Click({ Write-Log '--- Maintenance report ---'; Review-Maintenance })
+
+$btnRepairRun.add_Click({
+    $ids = @($script:repairChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+    if ($ids.Count -eq 0) { [void][System.Windows.Forms.MessageBox]::Show('Tick at least one repair tool.', 'Nothing selected', 'OK', 'Warning'); return }
+    $warn = $ids -contains 'chkdsk'
+    if ($warn -and [System.Windows.Forms.MessageBox]::Show('chkdsk will run at the next restart. Continue?', 'Confirm', 'YesNo', 'Warning') -eq 'No') { return }
+    Write-Log '=== System repair started (this can take a while) ==='
+    foreach ($id in $ids) { Run-RepairItem $id }
+    Write-Log '=== System repair finished ==='
+    [void][System.Windows.Forms.MessageBox]::Show('Repair finished.', 'Finished', 'OK', 'Information')
+})
 
 Write-Log 'Ready. Pick items on the tabs, then Apply. Restore ALL returns everything to defaults.'
 Write-Log ("Backups: " + $wsDir + "  and  " + $secDir)

@@ -51,6 +51,7 @@ Tick what you want, click **Apply ALL selected**, then reboot. Use
 
 | File | Purpose |
 |------|---------|
+| `1-Click-System-Optimizer.cmd` | One-click launcher: installs the signing cert and starts the GUI |
 | `SystemOptimizer-GUI.ps1` | The unified GUI app (main source) |
 | `WinServiceOptimizer.ps1` / `-GUI.ps1` | Standalone services-optimizer console/GUI sources |
 | `WinSecurityOptimizer.ps1` / `-GUI.ps1` | Standalone security-optimizer console/GUI sources |
