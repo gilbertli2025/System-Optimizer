@@ -272,6 +272,19 @@ entry point. The common ways in:
 
 ---
 
+## Using AI to stay safe online
+
+AI assistants (Copilot, Claude, ChatGPT) can help spot threats — as a **helper**,
+not a replacement for antivirus, updates, MFA and backups.
+
+- **Good uses:** ask AI to review a suspicious email or link for scams, explain
+  a Windows/antivirus warning, or guide you through recovery after an incident.
+- **Do NOT:** paste passwords or card numbers into AI, give an AI agent admin
+  access, or let it read your email/browser by default (it can be tricked).
+- Keep core defenses on and use AI to think **with** you, not to hold your keys.
+
+---
+
 ## Notes for a fresh Windows 11 PC
 
 - **Smart App Control** (Win11) can block this self-signed tool. If the exe is

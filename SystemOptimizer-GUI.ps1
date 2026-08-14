@@ -344,6 +344,17 @@ HOW TO CHECK FOR PROBLEMS (detection tools)
   recently signed-in activity on your Microsoft account.
 
 ------------------------------------------------------------------
+USING AI TO STAY SAFE ONLINE
+------------------------------------------------------------------
+AI assistants (Copilot, Claude, ChatGPT) can help spot threats - as a helper,
+not a replacement for antivirus, updates, MFA and backups.
+  Good uses: ask AI to review a suspicious email or link for scams, explain a
+  Windows/antivirus warning, or guide you through recovery after an incident.
+  Do NOT: paste passwords or card numbers into AI, give an AI agent admin
+  access, or let it read your email/browser by default (it can be tricked).
+  Keep core defenses on and use AI to think WITH you, not to hold your keys.
+
+------------------------------------------------------------------
 NOTES FOR A FRESH WINDOWS 11 PC
 ------------------------------------------------------------------
   - Smart App Control (Win11) can block this self-signed tool. If the exe
