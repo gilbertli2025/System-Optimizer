@@ -218,6 +218,60 @@ This tool keeps the system healthy. These habits protect you further:
 
 ---
 
+## How PCs actually get hacked (and how to stop it)
+
+A fully updated PC is rarely hacked "out of the blue" — an attack needs an
+entry point. The common ways in:
+
+1. **Phishing / stolen password or session** — a fake email or site tricks you
+   into typing your Microsoft password or approving a login. **Stop it:** turn
+   on two-factor authentication (MFA) and be suspicious of login prompts you
+   didn't start.
+2. **Malicious attachments / macros (Office)** — a Word/Excel/PDF runs a macro
+   that downloads a RAT or stealer. **Stop it:** don't open unexpected
+   attachments; the macro-blocking hardening in this tool helps.
+3. **Unpatched software** — an outdated browser/Office/Windows lets a bad
+   webpage exploit a known flaw. **Stop it:** keep everything updated.
+4. **Session/cookie theft** — a stolen browser cookie lets someone into sites
+   you're logged into, even with MFA. **Stop it:** password manager, avoid
+   shady extensions, caution on public Wi-Fi.
+5. **Malicious apps / "Sign in with Microsoft"** — granting login to a fake app
+   hands over access. **Stop it:** only authorize apps you trust.
+6. **Physical access** — someone using an unlocked PC. **Stop it:** auto-lock
+   and BitLocker (both in this tool).
+
+> **Bottom line:** the entry point is almost always a tricked click, a stolen
+> password/session, or an unpatched bug. Account hygiene (MFA, standard
+> account, cautious clicking) closes the biggest gaps.
+
+---
+
+## How to check for problems (detection tools)
+
+**Built into Windows (no install needed):**
+- **Windows Security (Defender)** — run a full scan; check "Protection
+  history" and "Virus & threat protection".
+- **Offline scan** — Windows Security → Virus & threat protection → Scan
+  options → Microsoft Defender Offline scan (reboots and scans deeply).
+- Check running programs: `Ctrl+Shift+Esc` → Startup + Details tabs.
+
+**Free, well-known scanners (run a second opinion):**
+- **Malwarebytes Free** — very effective second-opinion scanner.
+- **Microsoft Safety Scanner (MSERT)** — on-demand, single-use.
+- **HitmanPro / Kaspersky Virus Removal Tool** — quick second opinions.
+
+**Signs something may be wrong:**
+- PC suddenly very slow; high CPU/disk with nothing open
+- new toolbars/extensions, changed homepage, random pop-ups
+- browser redirects, unknown processes, unexpected accounts/logins
+- files encrypted with `.locked` / `.crypt` (ransomware)
+
+> **If you suspect an infection:** disconnect from the internet, run an
+> offline scan, change your important passwords (from another device), and
+> check recent sign-in activity on your Microsoft account.
+
+---
+
 ## Notes for a fresh Windows 11 PC
 
 - **Smart App Control** (Win11) can block this self-signed tool. If the exe is
