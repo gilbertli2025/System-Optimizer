@@ -277,6 +277,25 @@ WHERE THINGS ARE STORED
   Weekly restore point task: WeeklySystemRestorePoint (Sun 04:00)
 
 ------------------------------------------------------------------
+SECURITY BEST PRACTICES (beyond this tool)
+------------------------------------------------------------------
+This tool keeps the system healthy. These habits protect you further:
+  1. Accounts: use a Standard (non-admin) account for daily work and keep
+     admin for installs only. Turn on Windows Hello (PIN / biometrics) and
+     two-factor authentication on your Microsoft account and email.
+  2. Passwords: use a password manager so you never reuse passwords.
+  3. Software: download only from official sites. NEVER use cracked software
+     or keygens - the #1 source of infection.
+  4. Email/web: be careful clicking links or attachments, even from people
+     you know. Keep your browser and Windows updated.
+  5. Backups: restore points are NOT backups. Turn on File History for your
+     documents and keep an offline copy (USB/cloud) of important files.
+  6. Network: be careful on public Wi-Fi (use a VPN for sensitive work) and
+     lock the screen when you step away.
+  7. Updates: let Windows update automatically, reboot to apply, and restart
+     weekly.
+
+------------------------------------------------------------------
 NOTES FOR A FRESH WINDOWS 11 PC
 ------------------------------------------------------------------
   - Smart App Control (Win11) can block this self-signed tool. If the exe
