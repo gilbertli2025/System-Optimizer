@@ -5,7 +5,7 @@ is selectable and **restorable to defaults**.
 
 ## Download
 
-[![Download](https://img.shields.io/badge/Download-v1.1.0-brightgreen)](https://github.com/gilbertli2025/System-Optimizer/releases/latest)
+[![Download](https://img.shields.io/badge/Download-v1.2.0-brightgreen)](https://github.com/gilbertli2025/System-Optimizer/releases/latest)
 
 Get the portable package (`System-Optimizer-v1.1.0.zip`) from the
 [Releases page](https://github.com/gilbertli2025/System-Optimizer/releases).
