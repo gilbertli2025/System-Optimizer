@@ -3,14 +3,14 @@
   <Product Id="*"
            Name="Windows Services Optimizer"
            Language="1033"
-           Version="1.0.0"
-           Manufacturer="Windows Services Optimizer"
+           Version="$(var.Version)"
+           Manufacturer="System Optimizer"
            UpgradeCode="6B70DE5B-9CF0-477F-8D2D-CEAC9A235222">
 
-    <Package InstallerVersion="200"
+    <Package InstallerVersion="200" Platform="x64"
              Compressed="yes"
              InstallScope="perMachine"
-             Manufacturer="Windows Services Optimizer"
+             Manufacturer="System Optimizer"
              Description="Windows Services Optimizer - safely disables, restores and verifies non-critical Windows services."
              Keywords="windows services optimize speed" />
 
@@ -21,23 +21,35 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="Windows Services Optimizer">
-          <Component Id="GuiExe" Guid="*">
+          <Component Id="GuiExe" Guid="*" Win64="yes">
             <File Id="GuiExe"
                   Name="WinServiceOptimizer-GUI.exe"
-                  Source="C:\Users\admin\Desktop\WinServiceOptimizer-GUI.exe"
+                  Source="$(var.SourceDir)\WinServiceOptimizer-GUI.exe"
                   KeyPath="yes" />
           </Component>
-          <Component Id="ConsoleExe" Guid="*">
+          <Component Id="ConsoleExe" Guid="*" Win64="yes">
             <File Id="ConsoleExe"
                   Name="Windows-Services-Optimizer.exe"
-                  Source="C:\Users\admin\Desktop\Windows-Services-Optimizer.exe"
-                  KeyPath="yes" />
+                  Source="$(var.SourceDir)\Windows-Services-Optimizer.exe" />
           </Component>
+          <Directory Id="LibFolder" Name="lib">
+            <Component Id="LibCommon" Guid="*" Win64="yes">
+              <File Id="LibCommon"
+                    Name="Common.ps1"
+                    Source="$(var.SourceDir)\lib\Common.ps1"
+                    KeyPath="yes" />
+            </Component>
+            <Component Id="LibService" Guid="*" Win64="yes">
+              <File Id="LibService"
+                    Name="ServiceCatalog.ps1"
+                    Source="$(var.SourceDir)\lib\ServiceCatalog.ps1" />
+            </Component>
+          </Directory>
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="AppShortcuts" Name="Windows Services Optimizer">
-          <Component Id="StartMenuShortcut" Guid="*">
+          <Component Id="StartMenuShortcut" Guid="*" Win64="yes">
             <Shortcut Id="AppShortcut"
                       Name="Windows Services Optimizer"
                       Description="Safely disable non-critical Windows services"
@@ -58,10 +70,10 @@
     <Feature Id="MainFeature" Title="Windows Services Optimizer" Level="1">
       <ComponentRef Id="GuiExe" />
       <ComponentRef Id="ConsoleExe" />
+      <ComponentRef Id="LibCommon" />
+      <ComponentRef Id="LibService" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
-
-    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
   </Product>
 </Wix>
+

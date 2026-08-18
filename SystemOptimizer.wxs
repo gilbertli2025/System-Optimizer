@@ -3,11 +3,11 @@
   <Product Id="*"
            Name="System Optimizer"
            Language="1033"
-           Version="1.2.0"
+           Version="$(var.Version)"
            Manufacturer="System Optimizer"
            UpgradeCode="A175C7C7-686B-4E89-9321-4745312160A4">
 
-    <Package InstallerVersion="200"
+    <Package InstallerVersion="200" Platform="x64"
              Compressed="yes"
              InstallScope="perMachine"
              Manufacturer="System Optimizer"
@@ -21,17 +21,50 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="System Optimizer">
-          <Component Id="AppExe" Guid="*">
+          <Component Id="AppExe" Guid="*" Win64="yes">
             <File Id="AppExe"
                   Name="SystemOptimizer.exe"
-                  Source="C:\Users\admin\Desktop\SystemOptimizer.exe"
+                  Source="$(var.SourceDir)\SystemOptimizer.exe"
                   KeyPath="yes" />
           </Component>
+          <Directory Id="LibFolder" Name="lib">
+            <Component Id="LibCommon" Guid="*" Win64="yes">
+              <File Id="LibCommon"
+                    Name="Common.ps1"
+                    Source="$(var.SourceDir)\lib\Common.ps1"
+                    KeyPath="yes" />
+            </Component>
+            <Component Id="LibService" Guid="*" Win64="yes">
+              <File Id="LibService"
+                    Name="ServiceCatalog.ps1"
+                    Source="$(var.SourceDir)\lib\ServiceCatalog.ps1" />
+            </Component>
+            <Component Id="LibSecurity" Guid="*" Win64="yes">
+              <File Id="LibSecurity"
+                    Name="SecurityItems.ps1"
+                    Source="$(var.SourceDir)\lib\SecurityItems.ps1" />
+            </Component>
+            <Component Id="LibMaint" Guid="*" Win64="yes">
+              <File Id="LibMaint"
+                    Name="MaintenanceItems.ps1"
+                    Source="$(var.SourceDir)\lib\MaintenanceItems.ps1" />
+            </Component>
+            <Component Id="LibRepair" Guid="*" Win64="yes">
+              <File Id="LibRepair"
+                    Name="Repair.ps1"
+                    Source="$(var.SourceDir)\lib\Repair.ps1" />
+            </Component>
+            <Component Id="LibReview" Guid="*" Win64="yes">
+              <File Id="LibReview"
+                    Name="Review.ps1"
+                    Source="$(var.SourceDir)\lib\Review.ps1" />
+            </Component>
+          </Directory>
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="AppShortcuts" Name="System Optimizer">
-          <Component Id="StartMenuShortcut" Guid="*">
+          <Component Id="StartMenuShortcut" Guid="*" Win64="yes">
             <Shortcut Id="AppShortcut"
                       Name="System Optimizer"
                       Description="Tune performance and harden security in one GUI"
@@ -51,10 +84,14 @@
 
     <Feature Id="MainFeature" Title="System Optimizer" Level="1">
       <ComponentRef Id="AppExe" />
+      <ComponentRef Id="LibCommon" />
+      <ComponentRef Id="LibService" />
+      <ComponentRef Id="LibSecurity" />
+      <ComponentRef Id="LibMaint" />
+      <ComponentRef Id="LibRepair" />
+      <ComponentRef Id="LibReview" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
-
-    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
   </Product>
 </Wix>
+

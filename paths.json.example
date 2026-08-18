@@ -1,0 +1,6 @@
+{
+    "OutDir":     "C:\\Build\\System-Optimizer",
+    "Ps2Exe":     "C:\\Tools\\PS2EXE\\Module\\ps2exe.psm1",
+    "Wix":        "C:\\Tools\\wix\\bin",
+    "Thumbprint": "PUT-YOUR-CODE-SIGNING-CERT-THUMBPRINT-HERE"
+}

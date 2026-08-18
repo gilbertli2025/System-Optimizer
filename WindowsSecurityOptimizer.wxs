@@ -3,14 +3,14 @@
   <Product Id="*"
            Name="Windows Security Optimizer"
            Language="1033"
-           Version="1.0.0"
-           Manufacturer="Windows Services Optimizer"
+           Version="$(var.Version)"
+           Manufacturer="System Optimizer"
            UpgradeCode="9C649404-61BA-4F40-9DB0-E8935D365304">
 
-    <Package InstallerVersion="200"
+    <Package InstallerVersion="200" Platform="x64"
              Compressed="yes"
              InstallScope="perMachine"
-             Manufacturer="Windows Services Optimizer"
+             Manufacturer="System Optimizer"
              Description="Windows Security Optimizer - hardens a PC against malware: Defender cloud protection, firewall inbound blocking, scheduled scans and auto-lock."
              Keywords="windows security defender firewall harden malware" />
 
@@ -21,23 +21,40 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="Windows Security Optimizer">
-          <Component Id="GuiExe" Guid="*">
+          <Component Id="GuiExe" Guid="*" Win64="yes">
             <File Id="GuiExe"
                   Name="WinSecurityOptimizer-GUI.exe"
-                  Source="C:\Users\admin\Desktop\WinSecurityOptimizer-GUI.exe"
+                  Source="$(var.SourceDir)\WinSecurityOptimizer-GUI.exe"
                   KeyPath="yes" />
           </Component>
-          <Component Id="ConsoleExe" Guid="*">
+          <Component Id="ConsoleExe" Guid="*" Win64="yes">
             <File Id="ConsoleExe"
                   Name="Windows-Security-Optimizer.exe"
-                  Source="C:\Users\admin\Desktop\Windows-Security-Optimizer.exe"
-                  KeyPath="yes" />
+                  Source="$(var.SourceDir)\Windows-Security-Optimizer.exe" />
           </Component>
+          <Directory Id="LibFolder" Name="lib">
+            <Component Id="LibCommon" Guid="*" Win64="yes">
+              <File Id="LibCommon"
+                    Name="Common.ps1"
+                    Source="$(var.SourceDir)\lib\Common.ps1"
+                    KeyPath="yes" />
+            </Component>
+            <Component Id="LibSecurity" Guid="*" Win64="yes">
+              <File Id="LibSecurity"
+                    Name="SecurityItems.ps1"
+                    Source="$(var.SourceDir)\lib\SecurityItems.ps1" />
+            </Component>
+            <Component Id="LibReview" Guid="*" Win64="yes">
+              <File Id="LibReview"
+                    Name="Review.ps1"
+                    Source="$(var.SourceDir)\lib\Review.ps1" />
+            </Component>
+          </Directory>
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="AppShortcuts" Name="Windows Security Optimizer">
-          <Component Id="StartMenuShortcut" Guid="*">
+          <Component Id="StartMenuShortcut" Guid="*" Win64="yes">
             <Shortcut Id="AppShortcut"
                       Name="Windows Security Optimizer"
                       Description="Harden a Windows PC against malware"
@@ -58,10 +75,11 @@
     <Feature Id="MainFeature" Title="Windows Security Optimizer" Level="1">
       <ComponentRef Id="GuiExe" />
       <ComponentRef Id="ConsoleExe" />
+      <ComponentRef Id="LibCommon" />
+      <ComponentRef Id="LibSecurity" />
+      <ComponentRef Id="LibReview" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
-
-    <Icon Id="AppIcon" SourceFile="C:\Users\admin\AppData\Local\Temp\opencode\wix\wso.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
   </Product>
 </Wix>
+

@@ -1,0 +1,127 @@
+System Optimizer — Install & Run
+=================================
+
+What's in this package
+----------------------
+  SystemOptimizer.exe            The unified GUI (Performance + Security + Maintenance + Repair)
+  WinServiceOptimizer-GUI.exe    Standalone Services Optimizer GUI
+  WinServiceOptimizer.ps1        (source - used by the GUI if the .exe is missing)
+  WinSecurityOptimizer-GUI.exe   Standalone Security Optimizer GUI
+  WinSecurityOptimizer.ps1       (source)
+  Windows-Services-Optimizer.exe    Console services optimizer
+  Windows-Security-Optimizer.exe    Console security optimizer
+  WSO-Trust.cer                  Signing certificate (so Windows trusts the .exe)
+  1-Click-System-Optimizer.cmd   One-click launcher: installs WSO-Trust.cer and opens the GUI
+  lib\*.ps1                      Shared library (don't edit unless you know what you're doing)
+  HELP.md                        In-app help guide (also opened by the Help button in the GUI)
+  README.md                      Project README
+  STEPS-for-end-users.txt        Simple 3-step guide for non-technical users
+  LICENSE                        MIT license
+
+
+Install on another PC
+---------------------
+1. Copy the *whole unzipped folder* (or extract this zip) to the target PC,
+   e.g. C:\Tools\System-Optimizer\. Keep every file together.
+
+2. **Right-click 1-Click-System-Optimizer.cmd  -->  Run as administrator**.
+   The launcher will:
+     - Check for Smart App Control (Windows 11) and warn you if it's blocking
+     - Install the WSO-Trust.cer certificate so the signed .exe is trusted
+     - Open the System Optimizer GUI
+
+   You only need to do this ONCE per PC. Subsequent runs can be
+   double-click.
+
+3. In the GUI: tick what you want, click **Apply ALL selected**, then reboot.
+
+
+Alternative installs
+--------------------
+- Skip the GUI: just run `Windows-Security-Optimizer.exe` or
+  `Windows-Services-Optimizer.exe` from an elevated command prompt.
+- Build an MSI installer with `build.ps1` (needs WiX Toolset v3).
+
+
+Smart App Control on Windows 11
+-------------------------------
+Win11's Smart App Control blocks unknown .exe files. The package handles this:
+  - The cert (`WSO-Trust.cer`) makes the .exe trusted for SAC only AFTER
+    you install it via the 1-Click launcher.
+  - If SAC still blocks the .exe, turn it off at:
+    Windows Security > App & browser control > Smart App Control > Off
+    (this cannot be undone without resetting Windows).
+
+
+Replacing the self-signed certificate with your own
+---------------------------------------------------
+The .exe in this package is signed with a self-signed cert generated on the
+build machine. Windows will accept it after running the 1-Click launcher
+(which installs the cert as a trusted root), but most users prefer to
+re-sign with their own code-signing certificate.
+
+To re-sign:
+  1. Get an EV or standard code-signing certificate (.pfx).
+  2. Import it into Cert:\CurrentUser\My on your build machine.
+  3. Run:
+       .\build.ps1 -SignThumbprint '<thumbprint>' -TimeStampServer 'http://timestamp.digicert.com'
+
+
+What gets touched on the target PC
+----------------------------------
+  C:\ProgramData\WinServiceOpt\  services-backup.csv   (all-services-snapshot.csv, optimize.log)
+  C:\ProgramData\WinSecOpt\      backup.json           (harden.log, security-review.txt)
+  C:\ProgramData\SystemOptimizer\ unified.log           (maintenance-backup.json)
+
+Every change is backed up to those files BEFORE it's made. To roll anything
+back, click **Restore ALL to defaults** in the GUI (or use
+`Windows-Security-Optimizer.exe -Restore` / `Windows-Services-Optimizer.exe -Restore`
+on the console).
+
+
+System requirements
+-------------------
+  Windows 10 / 11 (64-bit)
+  .NET Framework 4.7.2+ (default on Win10/11)
+  Administrator rights  (the GUIs auto-request them via UAC)
+  Some items (BitLocker, System Restore) need Windows Pro/Enterprise + TPM.
+
+
+What does NOT get changed
+-------------------------
+  - Personal files
+  - Browser bookmarks / history (browser cache is cleared but bookmarks survive)
+  - Windows Update settings
+  - Anti-virus definitions
+  Anything else you can reverse with the Windows built-in "Reset this PC" or
+  the backup files in the folders above.
+
+
+Troubleshooting
+---------------
+  "Windows protected your PC" appears (Win10 SmartScreen):
+       Click "More info"  -->  "Run anyway".
+
+  Smart App Control blocks the .exe (Win11):
+       Turn it off in Windows Security > App & browser control > Smart App Control,
+       or install the included WSO-Trust.cer via the launcher.
+
+  The GUI opens but looks blurry / clipped:
+       Right-click the .exe --> Properties --> Compatibility --> Change high DPI settings
+       --> tick "Override high DPI scaling" --> System (Enhanced).
+
+  The launcher says "Could not find SystemOptimizer.exe":
+       Make sure SystemOptimizer.exe is in the same folder as the .cmd.
+
+  You get "Access denied" when applying settings:
+       Right-click the launcher and choose "Run as administrator".
+
+  Something the tool changed is causing trouble:
+       Run the launcher again and click "Restore ALL to defaults", then reboot.
+       All reversible changes will be rolled back; non-reversible items
+       (BitLocker, Empty Recycle Bin) you may need to undo manually.
+
+
+License
+-------
+MIT. See LICENSE in this package. No warranty - test on a non-critical PC first.

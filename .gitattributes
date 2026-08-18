@@ -1,2 +1,15 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# PowerShell script files MUST stay CRLF on Windows; PS2EXE depends on it
+*.ps1    text eol=crlf
+*.cmd    text eol=crlf
+*.psm1   text eol=crlf
+*.psd1   text eol=crlf
+*.wxs    text eol=crlf
+
+# Markdown keeps LF
+*.md     text eol=lf
+
+# Test files stay editable everywhere
+*.Tests.ps1 text eol=crlf

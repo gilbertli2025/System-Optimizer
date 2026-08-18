@@ -5,9 +5,9 @@ is selectable and **restorable to defaults**.
 
 ## Download
 
-[![Download](https://img.shields.io/badge/Download-v1.2.0-brightgreen)](https://github.com/gilbertli2025/System-Optimizer/releases/latest)
+[![Download](https://img.shields.io/badge/Download-v1.3.0-brightgreen)](https://github.com/gilbertli2025/System-Optimizer/releases/latest)
 
-Get the portable package (`System-Optimizer-v1.1.0.zip`) from the
+Get the portable package (`System-Optimizer-v1.3.0.zip`) from the
 [Releases page](https://github.com/gilbertli2025/System-Optimizer/releases).
 
 ## Features
@@ -27,6 +27,12 @@ restore.
 8. Disable AutoRun on removable drives
 9. Account lockout (5 tries / 15 min)
 10. Block Office macros from the internet + disable Windows Script Host
+
+**Maintenance & Cleanup** — temporary-file cleanup, Windows Update cleanup,
+SSD trim, DNS flush, Game DVR, Storage Sense, recycle-bin, browser cache,
+startup apps, visual effects, Fast Startup, tips, power plan.
+
+**System Repair** — `sfc /scannow`, `DISM /restorehealth`, `chkdsk C: /f`.
 
 **Master buttons** — Apply ALL selected · Restore ALL to defaults · Full
 review/verify · Help (in-app settings guide).
@@ -52,29 +58,65 @@ Tick what you want, click **Apply ALL selected**, then reboot. Use
 
 - Services: `%ProgramData%\WinServiceOpt\services-backup.csv`
 - Security: `%ProgramData%\WinSecOpt\backup.json`
+- Maintenance: `%ProgramData%\SystemOptimizer\maintenance-backup.json`
 - Log: `%ProgramData%\SystemOptimizer\unified.log`
+
+All backup files are written as **UTF-8 without BOM** so the JSON parses
+reliably on every Windows PowerShell version. The Apply/Restore pipeline
+saves a backup BEFORE every change and keeps the backup file if any single
+restore step fails (so you can retry without losing data).
 
 ## Source layout
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `1-Click-System-Optimizer.cmd` | One-click launcher: installs the signing cert and starts the GUI |
-| `SystemOptimizer-GUI.ps1` | The unified GUI app (main source) |
-| `WinServiceOptimizer.ps1` / `-GUI.ps1` | Standalone services-optimizer console/GUI sources |
-| `WinSecurityOptimizer.ps1` / `-GUI.ps1` | Standalone security-optimizer console/GUI sources |
+| `1-Click-System-Optimizer.cmd` | One-click launcher (cert + GUI) |
+| `SystemOptimizer-GUI.ps1` | The unified GUI app (thin shim) |
+| `WinServiceOptimizer.ps1` / `-GUI.ps1` | Standalone services optimizer |
+| `WinSecurityOptimizer.ps1` / `-GUI.ps1` | Standalone security optimizer |
+| `lib/*.ps1` | Shared library — single source of truth for every setting |
+| `lib/Common.ps1` | Paths, logging, JSON helpers, admin checks |
+| `lib/ServiceCatalog.ps1` | Service list + Apply/Restore/Verify |
+| `lib/SecurityItems.ps1` | 10 security items + Apply/Restore |
+| `lib/MaintenanceItems.ps1` | 13 maintenance items + Apply/Restore |
+| `lib/Repair.ps1` | sfc / DISM / chkdsk |
+| `lib/Review.ps1` | Security review report |
 | `SystemOptimizer.wxs` | WiX installer source (unified app) |
 | `WindowsServicesOptimizer.wxs` | WiX installer source (services tool) |
 | `WindowsSecurityOptimizer.wxs` | WiX installer source (security tool) |
-| `build.ps1` | Script that compiles, signs and builds the MSIs |
+| `build.ps1` | Compile + sign + build installers |
+| `paths.json.example` | Tool locations, sign thumbprint |
+| `tests/Lib.Tests.ps1` | Pester tests for the shared library |
+| `PSScriptAnalyzerSettings.psd1` | Lint rules for the project |
+| `.editorconfig` | Formatting rules (PowerShell, Markdown, JSON, WiX) |
 
 ## Building from source
 
-Run `.\build.ps1` after installing:
-- **PS2EXE** (open source, GitHub: MScholtes/PS2EXE) — compiles `.ps1` → `.exe`
-- **WiX Toolset v3** (`candle.exe` / `light.exe`) — builds the `.msi`
+```powershell
+Install-Module -Name PS2EXE -Scope CurrentUser
+# Install WiX Toolset v3 (candle.exe / light.exe) from https://wixtoolset.org
 
-See the build script for the exact commands, including how to re-sign with your
-own code-signing certificate.
+# Tool locations are picked up in this order:
+#   1. -Ps2ExeModule / -WixBin / -SignThumbprint parameters to build.ps1
+#   2. $env:WSO_PS2EXE / $env:WSO_WIX / $env:WSO_SIGN_THUMBPRINT
+#   3. Copy paths.json.example to paths.json next to build.ps1
+.\build.ps1
+```
+
+`build.ps1` compiles each `.ps1` to a `.exe` with PS2EXE, signs it with the
+configured thumbprint (skip if empty), assembles the MSI installers via WiX,
+and copies `HELP.md`, `README.md`, `1-Click-System-Optimizer.cmd` and the
+`lib\` folder into the output directory so the install is self-contained.
+
+## Testing
+
+```powershell
+Install-Module -Name Pester -Force -SkipPublisherCheck
+Invoke-Pester ./tests
+```
+
+The tests mock every OS-touching cmdlet so they run anywhere with no admin
+rights and no real changes to the system.
 
 ## License
 

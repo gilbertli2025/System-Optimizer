@@ -1,6 +1,7 @@
 @echo off
 setlocal
 title System Optimizer - One-click Installer
+cd /d "%~dp0"
 
 rem --- Check for admin rights; if missing, relaunch elevated ---
 net session >nul 2>&1
@@ -26,29 +27,34 @@ echo.
 
 rem --- Verify required files are present ---
 set MISSING=0
-if not exist "%~dp0WSO-Trust.cer"      ( echo   MISSING: WSO-Trust.cer & set MISSING=1 )
-if not exist "%~dp0SystemOptimizer.exe" ( echo   MISSING: SystemOptimizer.exe & set MISSING=1 )
+if not exist "%~dp0SystemOptimizer-GUI.ps1" ( echo   MISSING: SystemOptimizer-GUI.ps1 & set MISSING=1 )
+if not exist "%~dp0lib\Common.ps1"          ( echo   MISSING: lib\Common.ps1 & set MISSING=1 )
 if "%MISSING%"=="1" goto :missing
 
-echo [1/2] Installing trusted certificate...
-certutil -addstore -f Root "%~dp0WSO-Trust.cer"
-if %errorlevel%==0 (
-    echo       Certificate installed OK.
+rem --- Install the (self-signed) signing certificate so any signed .exe is trusted ---
+if exist "%~dp0WSO-Trust.cer" (
+    echo [1/2] Installing trusted certificate (only needs to run once per PC)...
+    certutil -addstore -f Root "%~dp0WSO-Trust.cer" >nul
+    if %errorlevel%==0 (
+        echo       Certificate installed OK.
+    ) else (
+        echo       WARNING: certificate install failed.
+    )
 ) else (
-    echo       WARNING: certificate install failed, see message above.
+    echo [1/2] Skipping certificate install (WSO-Trust.cer not present).
 )
 
-echo [2/2] Starting System Optimizer...
-start "" "%~dp0SystemOptimizer.exe"
-echo       Done. The optimizer is starting...
+echo [2/2] Starting System Optimizer (PowerShell source with Bypass)...
+start "System Optimizer" powershell -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File "%~dp0SystemOptimizer-GUI.ps1"
+echo       Started. The optimizer is opening in its own window.
 timeout /t 2 /nobreak >nul
 exit /b 0
 
 :missing
 echo.
-echo   ERROR: Some files are missing from this folder.
-echo   This file, WSO-Trust.cer and SystemOptimizer.exe must all be in the
-echo   SAME folder. Copy the whole System-Optimizer folder or extract the
-echo   whole ZIP, then run this .cmd again.
+echo   ERROR: Could not find SystemOptimizer-GUI.ps1 and/or lib\Common.ps1.
+echo   Make sure this .cmd lives in the SAME folder as SystemOptimizer-GUI.ps1
+echo   and the lib\ folder. Re-download from
+echo     https://github.com/gilbertli2025/System-Optimizer/releases
 pause
 exit /b 1

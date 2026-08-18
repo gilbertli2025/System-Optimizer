@@ -1,4 +1,4 @@
-# System Optimizer — User Guide
+﻿# System Optimizer — User Guide
 
 This tool has two tabs plus master buttons. Everything you enable can be
 reverted with **Restore ALL to defaults**. Every change is logged and backed up.
@@ -173,18 +173,9 @@ are **not** part of **Apply ALL** — run them here only when needed.
 >
 > Cleanup actions (1–4, 7–8) free space and are **not** reverted by Restore.
 
----
-
-## Master buttons (bottom)
-
-- **Apply ALL selected** — applies ticked services AND security items.
-- **Restore ALL to defaults** — reverts everything to its original state.
-- **Full review / verify** — runs the services verify + full security review.
-- **Help** — opens this guide.
-
-> Restore intentionally does **not** undo two things (for safety):
-> - BitLocker — the drive stays encrypted.
-> - System Restore protection — stays enabled so you keep your safety net.
+> Note: the unified **SystemOptimizer.exe** also has tabs for Maintenance
+> (cleanup) and System Repair (sfc / dism / chkdsk). On those tabs Apply ALL
+> does **not** include the destructive or repair items; run them on demand.
 
 ---
 
@@ -211,8 +202,8 @@ This tool keeps the system healthy. These habits protect you further:
    people you know. Keep your browser and Windows updated.
 5. **Backups** — restore points are **not** backups. Turn on File History for
    your documents and keep an offline copy (USB/cloud) of important files.
-6. **Network** — be careful on public Wi-Fi (use a VPN for sensitive work)
-   and lock the screen when you step away.
+6. **Network** — be careful on public Wi-Fi (use a VPN for sensitive work) and
+   lock the screen when you step away.
 7. **Updates** — let Windows update automatically, reboot to apply, and
    restart weekly.
 
@@ -248,23 +239,21 @@ entry point. The common ways in:
 
 ## How to check for problems (detection tools)
 
-**Built into Windows (no install needed):**
-- **Windows Security (Defender)** — run a full scan; check "Protection
-  history" and "Virus & threat protection".
-- **Offline scan** — Windows Security → Virus & threat protection → Scan
-  options → Microsoft Defender Offline scan (reboots and scans deeply).
-- Check running programs: `Ctrl+Shift+Esc` → Startup + Details tabs.
-
-**Free, well-known scanners (run a second opinion):**
-- **Malwarebytes Free** — very effective second-opinion scanner.
-- **Microsoft Safety Scanner (MSERT)** — on-demand, single-use.
-- **HitmanPro / Kaspersky Virus Removal Tool** — quick second opinions.
-
-**Signs something may be wrong:**
-- PC suddenly very slow; high CPU/disk with nothing open
-- new toolbars/extensions, changed homepage, random pop-ups
-- browser redirects, unknown processes, unexpected accounts/logins
-- files encrypted with `.locked` / `.crypt` (ransomware)
+- **Built into Windows (no install needed):**
+  - **Windows Security (Defender)** — run a full scan; check "Protection
+    history" and "Virus & threat protection".
+  - **Offline scan** — Windows Security → Virus & threat protection → Scan
+    options → Microsoft Defender Offline scan (reboots and scans deeply).
+  - Check running programs: `Ctrl+Shift+Esc` → Startup + Details tabs.
+- **Free, well-known scanners (run a second opinion):**
+  - **Malwarebytes Free** — very effective second-opinion scanner.
+  - **Microsoft Safety Scanner (MSERT)** — on-demand, single-use.
+  - **HitmanPro / Kaspersky Virus Removal Tool** — quick second opinions.
+- **Signs something may be wrong:**
+  - PC suddenly very slow; high CPU/disk with nothing open
+  - new toolbars/extensions, changed homepage, random pop-ups
+  - browser redirects, unknown processes, unexpected accounts/logins
+  - files encrypted with `.locked` / `.crypt` (ransomware)
 
 > **If you suspect an infection:** disconnect from the internet, run an
 > offline scan, change your important passwords (from another device), and
@@ -277,8 +266,8 @@ entry point. The common ways in:
 AI assistants (Copilot, Claude, ChatGPT) can help spot threats — as a **helper**,
 not a replacement for antivirus, updates, MFA and backups.
 
-- **Good uses:** ask AI to review a suspicious email or link for scams, explain
-  a Windows/antivirus warning, or guide you through recovery after an incident.
+- **Good uses:** ask AI to review a suspicious email or link for scams, explain a
+  Windows/antivirus warning, or guide you through recovery after an incident.
 - **Do NOT:** paste passwords or card numbers into AI, give an AI agent admin
   access, or let it read your email/browser by default (it can be tricked).
 - Keep core defenses on and use AI to think **with** you, not to hold your keys.

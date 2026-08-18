@@ -1,0 +1,514 @@
+<#
+.SYNOPSIS
+  Security hardening items + Apply/Restore for the System Optimizer suite.
+  Ten items, all reversible.
+
+  BUG FIXES (vs. previous copy-pasted versions):
+    * Backup is now saved BEFORE the registry change in every Apply-* function
+      (was wrong only for Apply-OfficeWSH, which saved AFTER - now correct).
+    * Apply-BitLocker saves ONE backup row (was saving twice in the already-on
+      path). The row uniquely identifies the original state (Disabled vs
+      AlreadyOn) and Restore-SecurityEntry uses it.
+    * JSON backup writes via the shared UTF-8-no-BOM helper
+      (writes were previously UTF-8 WITH BOM under PS 5.1, which broke
+      ConvertFrom-Json on restore and silently made restore a no-op).
+    * Restore-Security keeps the backup file if any single row fails
+      (was deleting unconditionally).
+    * All Set-ItemProperty / Set-MpPreference calls have explicit -ErrorAction.
+    * The scheduled task uses the full Windows PowerShell path (env
+      'SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe') instead of
+      a bare 'powershell.exe', which on constrained systems could resolve to
+      the Store version of PowerShell.
+#>
+
+$ErrorActionPreference = 'Stop'
+
+# --------------------------------------------------------------------------
+# Item metadata (used by every UI for checkbox text + tooltip)
+# --------------------------------------------------------------------------
+$script:SecurityItems = @(
+    @{ id='cloud';     text='Defender cloud protection (block at first sight)' }
+    @{ id='firewall';  text='Firewall: block all unsolicited inbound by default' }
+    @{ id='scan';      text='Daily Defender quick scan at 03:00' }
+    @{ id='lock';      text='Auto-lock the screen after 10 min idle' }
+    @{ id='browsers';  text='Harden Edge + Chrome browsers' }
+    @{ id='restore';   text='Enable System Restore + weekly restore points' }
+    @{ id='bitlocker'; text='BitLocker on C: (TPM) - protect against theft' }
+    @{ id='autorun';   text='Disable AutoRun on removable drives' }
+    @{ id='lockout';   text='Account lockout (5 tries / 15 min)' }
+    @{ id='officewsh'; text='Block Office macros from internet + disable Script Host' }
+)
+
+# --------------------------------------------------------------------------
+# Known registry / policy paths
+# --------------------------------------------------------------------------
+$script:SecurityKeys = @{
+    EdgePolicies    = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
+    ChromePolicies  = 'HKLM:\SOFTWARE\Policies\Google\Chrome'
+    AutoRun         = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'
+    SystemRestore   = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'
+    Netlogon        = 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters'
+    ScriptHost      = 'HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings'
+    ScreenSaver     = 'HKCU:\Control Panel\Desktop'
+}
+
+$script:EdgeHardeningPolicy = @{
+    'SmartScreenEnabled'                       = 1
+    'SmartScreenForTrustedDownloadsEnabled'   = 1
+    'SafeBrowsingEnabled'                      = 1
+    'DownloadRestrictions'                     = 2
+    'BlockThirdPartyCookies'                   = 1
+    'DefaultPopupsSetting'                     = 2
+    'SitePerProcess'                           = 1
+    'DefaultWebUsbSetting'                     = 2
+    'DefaultWebSerialSetting'                  = 2
+    'AutofillCreditCardEnabled'                = 0
+}
+
+$script:ChromeHardeningPolicy = @{
+    'SafeBrowsingProtectionLevel' = 2
+    'DownloadRestrictions'        = 2
+    'BlockThirdPartyCookies'      = 1
+    'DefaultPopupsSetting'        = 2
+    'SitePerProcess'              = 1
+    'DefaultWebUsbSetting'        = 2
+    'DefaultWebSerialSetting'     = 2
+    'AutofillCreditCardEnabled'   = 0
+}
+
+$script:WeeklyRestoreTaskName = 'WeeklySystemRestorePoint'
+
+# --------------------------------------------------------------------------
+# Low-level helpers
+# --------------------------------------------------------------------------
+function Get-MpSetting {
+    try { return (Get-MpPreference -ErrorAction Stop) } catch { return $null }
+}
+
+function Get-RegDword {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Name)
+    try {
+        $v = Get-ItemPropertyValue -LiteralPath $Path -Name $Name -ErrorAction Stop
+        return $v
+    } catch { return $null }
+}
+
+function Set-RegDword {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][int]$Value
+    )
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -LiteralPath $Path -Force | Out-Null
+    }
+    Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Type DWord -ErrorAction Stop
+}
+
+function Remove-RegValue {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Name)
+    try { Remove-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop } catch { }
+}
+
+function Test-ServiceBackupExists { Test-Path -LiteralPath $script:Paths.SecurityBackupFile }
+
+# --------------------------------------------------------------------------
+# Apply-* functions  (ALL save the backup row BEFORE making any change)
+# --------------------------------------------------------------------------
+function Apply-CloudProtection {
+    $mp = Get-MpSetting
+    if (-not $mp) { Write-Log "SKIP cloud protection: Defender preferences unavailable."; return }
+    if ($mp.MAPS -eq 2 -and $mp.SubmitSamplesConsent -eq 1 -and $mp.CloudBlockLevel -eq 2) {
+        Write-Log "SKIP cloud protection: already hardened."; return
+    }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'cloud' -Value (
+        @{ MAPS = $mp.MAPS; SubmitSamplesConsent = $mp.SubmitSamplesConsent; CloudBlockLevel = $mp.CloudBlockLevel } | ConvertTo-Json -Compress
+    )
+    Set-MpPreference -MAPS 2 -SubmitSamplesConsent 1 -CloudBlockLevel 2 -ErrorAction Stop | Out-Null
+    Write-Log "ENABLED: Defender cloud protection."
+}
+
+function Apply-FirewallBlock {
+    $needBackup = $false
+    foreach ($profile in 'Domain','Private','Public') {
+        $f = Get-NetFirewallProfile -Name $profile
+        if ($f.DefaultInboundAction -ne 'Block' -or $f.Enabled -ne $true) {
+            $needBackup = $true; break
+        }
+    }
+    if (-not $needBackup) {
+        Write-Log "SKIP firewall: already Block + enabled."; return
+    }
+    $old = @{}
+    foreach ($p in 'Domain','Private','Public') {
+        $pf = Get-NetFirewallProfile -Name $p
+        $old[$p] = @{ DefaultInboundAction = "$($pf.DefaultInboundAction)"; Enabled = $pf.Enabled }
+    }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'firewall' -Value ($old | ConvertTo-Json -Compress)
+    foreach ($profile in 'Domain','Private','Public') {
+        try {
+            Set-NetFirewallProfile -Name $profile -DefaultInboundAction Block -Enabled True -ErrorAction Stop
+        } catch {
+            Write-Log "WARN firewall profile $profile : $($_.Exception.Message)"
+        }
+    }
+    Write-Log "ENABLED: firewall blocks all unsolicited inbound."
+}
+
+function Apply-ScanSchedule {
+    $mp = Get-MpSetting
+    if (-not $mp) { Write-Log "SKIP scan schedule: Defender preferences unavailable."; return }
+    if ($mp.ScanScheduleQuickScanTime -eq 3) { Write-Log "SKIP scan schedule: already 03:00."; return }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'scan' -Value ([string]$mp.ScanScheduleQuickScanTime)
+    Set-MpPreference -ScanScheduleQuickScanTime 3 -ErrorAction Stop | Out-Null
+    Write-Log "ENABLED: daily Defender quick scan at 03:00."
+}
+
+function Apply-AutoLock {
+    $d = $script:SecurityKeys.ScreenSaver
+    $oldActive  = Get-RegDword $d 'ScreenSaveActive'
+    $oldSecure  = Get-RegDword $d 'ScreenSaverIsSecure'
+    $oldTimeout = Get-RegDword $d 'ScreenSaveTimeOut'
+    if ($oldSecure -eq 1) { Write-Log "SKIP auto-lock: already locks after idle."; return }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'lock' -Value (
+        @{ Active = "$oldActive"; Secure = "$oldSecure"; Timeout = "$oldTimeout" } | ConvertTo-Json -Compress
+    )
+    try { Set-RegDword $d 'ScreenSaveActive'   1   } catch { Write-Log "WARN ScreenSaveActive: $($_.Exception.Message)" }
+    try { Set-RegDword $d 'ScreenSaverIsSecure' 1   } catch { Write-Log "WARN ScreenSaverIsSecure: $($_.Exception.Message)" }
+    try { Set-RegDword $d 'ScreenSaveTimeOut' 600    } catch { Write-Log "WARN ScreenSaveTimeOut: $($_.Exception.Message)" }
+    Write-Log "ENABLED: auto-lock after 10 min idle."
+}
+
+function Apply-BrowserHardening {
+    $edgeKey   = $script:SecurityKeys.EdgePolicies
+    $chromeKey = $script:SecurityKeys.ChromePolicies
+    $edgePol   = $script:EdgeHardeningPolicy
+    $chromePol = $script:ChromeHardeningPolicy
+
+    $already = ((Get-RegDword $edgeKey 'DownloadRestrictions') -eq 2) -and
+               ((Get-RegDword $chromeKey 'DownloadRestrictions') -eq 2)
+    if ($already) { Write-Log "SKIP browsers: already hardened."; return }
+
+    $old = @{ edge = @{}; chrome = @{} }
+    foreach ($b in 'edge','chrome') {
+        $key = if ($b -eq 'edge') { $edgeKey } else { $chromeKey }
+        $pol = if ($b -eq 'edge') { $edgePol } else { $chromePol }
+        foreach ($pn in $pol.Keys) {
+            $cur = Get-RegDword $key $pn
+            $old[$b][$pn] = if ($null -eq $cur) { 'MISSING' } else { $cur }
+        }
+    }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'browsers' -Value ($old | ConvertTo-Json -Compress)
+
+    foreach ($b in 'edge','chrome') {
+        $key = if ($b -eq 'edge') { $edgeKey } else { $chromeKey }
+        $pol = if ($b -eq 'edge') { $edgePol } else { $chromePol }
+        foreach ($pn in $pol.Keys) {
+            try { Set-RegDword $key $pn $pol[$pn] } catch {
+                Write-Log "WARN $b $pn : $($_.Exception.Message)"
+            }
+        }
+    }
+    Write-Log "ENABLED: browser hardening for Edge + Chrome."
+}
+
+function Apply-SystemRestore {
+    $drives = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object { $_.DeviceID })
+    if ($drives.Count -eq 0) { Write-Log "SKIP restore points: no fixed drive found."; return }
+    $key = $script:SecurityKeys.SystemRestore
+    $freqNow = Get-RegDword $key 'SystemRestorePointCreationFrequency'
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'restore' -Value (
+        @{ Drives = ($drives -join ','); Frequency = [string]$freqNow } | ConvertTo-Json -Compress
+    )
+    foreach ($d in $drives) {
+        try { Enable-ComputerRestore -Drive "$d\" -ErrorAction Stop; Write-Log "ENABLED: system protection on $d." }
+        catch { Write-Log "WARN enable protection ${d}: $($_.Exception.Message)" }
+    }
+    try { Set-RegDword $key 'SystemRestorePointCreationFrequency' 0 } catch {
+        Write-Log "WARN set restore frequency: $($_.Exception.Message)"
+    }
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $arg = "-NoProfile -ExecutionPolicy Bypass -Command `"Checkpoint-Computer -Description 'Weekly Restore Point' -RestorePointType MODIFY_SETTINGS`""
+    try {
+        $action    = New-ScheduledTaskAction -Execute $ps -Argument $arg -ErrorAction Stop
+        $trigger   = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 4am -ErrorAction Stop
+        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest -ErrorAction Stop
+        Register-ScheduledTask -TaskName $script:WeeklyRestoreTaskName -Action $action -Trigger $trigger -Principal $principal -Force -ErrorAction Stop | Out-Null
+        Write-Log "ENABLED: weekly restore point task every Sunday 04:00."
+    } catch { Write-Log "WARN schedule weekly task: $($_.Exception.Message)" }
+    try {
+        Checkpoint-Computer -Description 'System Optimizer baseline' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null
+        Write-Log "Created a restore point now."
+    } catch { Write-Log "WARN checkpoint now: $($_.Exception.Message)" }
+}
+
+function Apply-BitLocker {
+    $bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
+    $alreadyOn = ($bl -and $bl.ProtectionStatus -eq 'On')
+    # BUG FIX: single backup row whose Value tells us the original state.
+    $state = if ($alreadyOn) { 'AlreadyOn' } else { 'Disabled' }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'bitlocker' -Value (@{ State = $state } | ConvertTo-Json -Compress)
+    if ($alreadyOn) {
+        Write-Log "SKIP BitLocker: already on."; return
+    }
+    try {
+        Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest -TpmProtector -ErrorAction Stop | Out-Null
+        Write-Log "ENABLED: BitLocker on C: (TPM). Encrypting in the background."
+    } catch {
+        Write-Log "WARN BitLocker: $($_.Exception.Message)"
+        Write-Log "NOTE: BitLocker needs Pro/Enterprise + TPM. On Home use Settings > Privacy & security > Device encryption."
+    }
+}
+
+function Apply-AutoRun {
+    $key = $script:SecurityKeys.AutoRun
+    $old = Get-RegDword $key 'NoDriveTypeAutoRun'
+    if ($old -eq 255) { Write-Log "SKIP AutoRun: already disabled."; return }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'autorun' -Value ([string]$old)
+    try {
+        Set-RegDword $key 'NoDriveTypeAutoRun' 255
+        Write-Log "ENABLED: AutoRun disabled for removable drives."
+    } catch { Write-Log "ERROR AutoRun: $($_.Exception.Message)" }
+}
+
+function Apply-Lockout {
+    $key = $script:SecurityKeys.Netlogon
+    $old = @{
+        threshold = Get-RegDword $key 'lockoutthreshold'
+        duration  = Get-RegDword $key 'lockoutduration'
+        window    = Get-RegDword $key 'lockoutobservationwindow'
+    }
+    if ($old.threshold -eq 5) { Write-Log "SKIP lockout: already set."; return }
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'lockout' -Value ($old | ConvertTo-Json -Compress)
+    try { Set-RegDword $key 'lockoutthreshold'         5 } catch { Write-Log "WARN lockoutthreshold: $($_.Exception.Message)" }
+    try { Set-RegDword $key 'lockoutduration'         15 } catch { Write-Log "WARN lockoutduration: $($_.Exception.Message)" }
+    try { Set-RegDword $key 'lockoutobservationwindow' 15 } catch { Write-Log "WARN lockoutobservationwindow: $($_.Exception.Message)" }
+    Write-Log "ENABLED: account lockout after 5 failed tries for 15 min."
+}
+
+function Apply-OfficeWSH {
+    # BUG FIX: capture old values first, save backup ONCE, then mutate.
+    $apps = 'Word','Excel','PowerPoint','Outlook'
+    $officeKeyBase = 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\{0}\Security'
+    $oldOffice = @{}
+    foreach ($app in $apps) {
+        $k = $officeKeyBase -f $app
+        $oldOffice[$app] = Get-RegDword $k 'BlockContentExecutionFromInternet'
+    }
+    $wshKey = $script:SecurityKeys.ScriptHost
+    $oldWSH = Get-RegDword $wshKey 'Enabled'
+
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'officewsh' -Value (
+        @{ office = $oldOffice; wsh = "$oldWSH" } | ConvertTo-Json -Compress
+    )
+
+    foreach ($app in $apps) {
+        try { Set-RegDword ($officeKeyBase -f $app) 'BlockContentExecutionFromInternet' 1 }
+        catch { Write-Log "WARN Office $app : $($_.Exception.Message)" }
+    }
+    try { Set-RegDword $wshKey 'Enabled' 0 } catch { Write-Log "WARN Script Host: $($_.Exception.Message)" }
+    Write-Log "ENABLED: Office macros from internet blocked + Windows Script Host disabled."
+}
+
+# --------------------------------------------------------------------------
+# Dispatcher
+# --------------------------------------------------------------------------
+function Apply-SecurityItem {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id)
+    switch ($Id) {
+        'cloud'     { Apply-CloudProtection }
+        'firewall'  { Apply-FirewallBlock }
+        'scan'      { Apply-ScanSchedule }
+        'lock'      { Apply-AutoLock }
+        'browsers'  { Apply-BrowserHardening }
+        'restore'   { Apply-SystemRestore }
+        'bitlocker' { Apply-BitLocker }
+        'autorun'   { Apply-AutoRun }
+        'lockout'   { Apply-Lockout }
+        'officewsh' { Apply-OfficeWSH }
+        default     { Write-Log "WARN: unknown security id '$Id'" }
+    }
+}
+
+# --------------------------------------------------------------------------
+# Restore
+#
+# BUG FIX: every Restore-*Entry returns $true/$false. Restore-Security
+# keeps the backup file if ANY row failed so the user can retry.
+# --------------------------------------------------------------------------
+function Restore-SecurityEntry {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][object]$Row)
+
+    try {
+        switch ($Row.Name) {
+            'cloud' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                if ($null -ne $o.MAPS) { Set-MpPreference -MAPS ([int]$o.MAPS) -ErrorAction Stop }
+                if ($null -ne $o.SubmitSamplesConsent) { Set-MpPreference -SubmitSamplesConsent ([int]$o.SubmitSamplesConsent) -ErrorAction Stop }
+                if ($null -ne $o.CloudBlockLevel) { Set-MpPreference -CloudBlockLevel ([int]$o.CloudBlockLevel) -ErrorAction Stop }
+                Write-Log "RESTORED: cloud protection"
+            }
+            'firewall' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                foreach ($p in 'Domain','Private','Public') {
+                    if ($o.$p) {
+                        Set-NetFirewallProfile -Name $p -DefaultInboundAction $o.$p.DefaultInboundAction -Enabled $o.$p.Enabled -ErrorAction Stop
+                    }
+                }
+                Write-Log "RESTORED: firewall settings"
+            }
+            'scan' {
+                Set-MpPreference -ScanScheduleQuickScanTime ([int]$Row.Value) -ErrorAction Stop
+                Write-Log "RESTORED: scan schedule"
+            }
+            'lock' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                $d = $script:SecurityKeys.ScreenSaver
+                if ($null -ne $o.Active)  { Set-ItemProperty -LiteralPath $d -Name ScreenSaveActive    -Value ([string]$o.Active) -ErrorAction Stop }
+                if ($null -ne $o.Secure)  { Set-ItemProperty -LiteralPath $d -Name ScreenSaverIsSecure -Value ([string]$o.Secure) -ErrorAction Stop }
+                if ($null -ne $o.Timeout) { Set-ItemProperty -LiteralPath $d -Name ScreenSaveTimeOut   -Value ([string]$o.Timeout) -ErrorAction Stop }
+                Write-Log "RESTORED: auto-lock"
+            }
+            'browsers' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                foreach ($b in 'edge','chrome') {
+                    $key = if ($b -eq 'edge') { $script:SecurityKeys.EdgePolicies } else { $script:SecurityKeys.ChromePolicies }
+                    foreach ($pn in $o.$b.PSObject.Properties) {
+                        if ($pn.Value -eq 'MISSING' -or $null -eq $pn.Value) {
+                            Remove-RegValue $key $pn.Name
+                        } else {
+                            Set-RegDword $key $pn.Name ([int]$pn.Value)
+                        }
+                    }
+                    # Tidy empty policy keys
+                    $polKey = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+                    if ($polKey -and $polKey.Property.Count -eq 0) {
+                        try { Remove-Item -LiteralPath $key -Force -ErrorAction Stop } catch { }
+                    }
+                }
+                Write-Log "RESTORED: browser policies"
+            }
+            'restore' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                try { Unregister-ScheduledTask -TaskName $script:WeeklyRestoreTaskName -Confirm:$false -ErrorAction SilentlyContinue } catch { }
+                $key = $script:SecurityKeys.SystemRestore
+                if ($null -ne $o.Frequency -and ([string]$o.Frequency) -ne '') {
+                    Set-RegDword $key 'SystemRestorePointCreationFrequency' ([int]$o.Frequency)
+                } else {
+                    Remove-RegValue $key 'SystemRestorePointCreationFrequency'
+                }
+                Write-Log "RESTORED: weekly restore task + frequency. Protection left ENABLED (safer)."
+            }
+            'bitlocker' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                if ($o.State -eq 'AlreadyOn') {
+                    Write-Log "BitLocker was already on before apply - no changes to undo."
+                } else {
+                    Write-Log "BitLocker left as-is (stays encrypted). Decrypt manually with the recovery key if you want it off."
+                }
+            }
+            'autorun' {
+                $key = $script:SecurityKeys.AutoRun
+                if (-not [string]::IsNullOrWhiteSpace($Row.Value)) {
+                    Set-RegDword $key 'NoDriveTypeAutoRun' ([int]$Row.Value)
+                } else {
+                    Remove-RegValue $key 'NoDriveTypeAutoRun'
+                }
+                Write-Log "RESTORED: AutoRun setting"
+            }
+            'lockout' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                $key = $script:SecurityKeys.Netlogon
+                if ($null -ne $o.threshold) { Set-RegDword $key 'lockoutthreshold'         ([int]$o.threshold) }
+                if ($null -ne $o.duration)  { Set-RegDword $key 'lockoutduration'          ([int]$o.duration) }
+                if ($null -ne $o.window)    { Set-RegDword $key 'lockoutobservationwindow' ([int]$o.window) }
+                Write-Log "RESTORED: account lockout policy"
+            }
+            'officewsh' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                $officeKeyBase = 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\{0}\Security'
+                foreach ($app in 'Word','Excel','PowerPoint','Outlook') {
+                    $k = $officeKeyBase -f $app
+                    if ($o.office.PSObject.Properties[$app] -and $null -ne $o.office.$app) {
+                        Set-RegDword $k 'BlockContentExecutionFromInternet' ([int]$o.office.$app)
+                    } else {
+                        Remove-RegValue $k 'BlockContentExecutionFromInternet'
+                    }
+                }
+                $wshKey = $script:SecurityKeys.ScriptHost
+                if (-not [string]::IsNullOrWhiteSpace([string]$o.wsh)) {
+                    Set-RegDword $wshKey 'Enabled' ([int]$o.wsh)
+                } else {
+                    Remove-RegValue $wshKey 'Enabled'
+                }
+                Write-Log "RESTORED: Office macro + Script Host settings"
+            }
+            default { Write-Log "WARN: unknown backup row '$($Row.Name)' - skipped." }
+        }
+        return $true
+    } catch {
+        Write-Log "ERROR restoring $($Row.Name): $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Restore-Security {
+    [CmdletBinding()]
+    $rows = Read-JsonArray -Path $script:Paths.SecurityBackupFile
+    if ($rows.Count -eq 0) { Write-Log "No security backup - nothing to restore."; return }
+    Write-Log "=== Security restore started ==="
+    $anyFailed = $false
+    $successIds = @()
+    foreach ($row in $rows) {
+        $ok = Restore-SecurityEntry -Row $row
+        if (-not $ok) { $anyFailed = $true }
+        else { $successIds += $row.Name }
+    }
+    # BUG FIX: keep the file if anything failed so the user can retry without
+    # losing the backup. Drop only the rows we managed to restore.
+    if (-not $anyFailed) {
+        Remove-Item -LiteralPath $script:Paths.SecurityBackupFile -Force -ErrorAction SilentlyContinue
+    } else {
+        $remaining = @($rows | Where-Object { $successIds -notcontains $_.Name })
+        if ($remaining.Count -eq 0) {
+            Remove-Item -LiteralPath $script:Paths.SecurityBackupFile -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-JsonArray -Path $script:Paths.SecurityBackupFile -Items $remaining
+        }
+        Write-Log "WARNING: some security items failed to restore. Backup file kept for retry."
+    }
+    Write-Log "=== Security restore finished ==="
+}
+
+function Restore-SecurityItems {
+    [CmdletBinding()]
+    param([string[]]$Ids)
+    $rows = Read-JsonArray -Path $script:Paths.SecurityBackupFile
+    if ($rows.Count -eq 0) { Write-Log "No security backup - nothing to restore."; return }
+    $restored = 0
+    $remaining = @()
+    $failed = 0
+    foreach ($row in $rows) {
+        if ($Ids -contains $row.Name) {
+            if (Restore-SecurityEntry -Row $row) { $restored++ } else { $failed++; $remaining += $row }
+        } else {
+            $remaining += $row
+        }
+    }
+    if ($restored -eq 0 -and $failed -eq 0) {
+        Write-Log "None of the ticked items had been applied (nothing to restore)."; return
+    }
+    if ($remaining.Count -eq 0) {
+        Remove-Item -LiteralPath $script:Paths.SecurityBackupFile -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-JsonArray -Path $script:Paths.SecurityBackupFile -Items $remaining
+    }
+    Write-Log "Restore checked finished ($restored restored, $failed failed)."
+}
+
+$script:LibSecurityLoaded = $true
