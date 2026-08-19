@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Security review report. Generates both a console-style summary and a
   persisted report file.
@@ -180,4 +180,83 @@ function Get-MaintenanceReport {
     $lines | ForEach-Object { Write-Log $_ }
 }
 
+# --------------------------------------------------------------------------
+# Diagnostics (v1.4): drive health, disk space, resources, power/battery
+# --------------------------------------------------------------------------
+function Get-DriveHealthReport {
+    Write-Log '-- Drive health (SMART) --'
+    try {
+        $disks = @(Get-PhysicalDisk -ErrorAction Stop)
+        foreach ($d in $disks) {
+            $wear = $null
+            try { $rc = $d | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue; $wear = $rc.Wear } catch { }
+            $w = if ($null -ne $wear) { "$wear%" } else { 'n/a' }
+            $fs = Get-Volume -DriveLetter $d.DeviceId.Substring(0,1) -ErrorAction SilentlyContinue
+            Write-Log ("  {0}  {1}  {2} GB  health={3}  wear={4}" -f $d.FriendlyName, $d.MediaType, [math]::Round($d.Size/1GB), $d.HealthStatus, $w)
+        }
+        $bad = $disks | Where-Object { $_.HealthStatus -ne 'Healthy' }
+        if ($bad) { Write-Log "  WARNING: one or more drives are not healthy - back up important data and check them." }
+        else { Write-Log '  All drives report Healthy.' }
+    } catch { Write-Log '  Drive health query failed (may need admin).' }
+}
+
+function Get-DiskSpaceReport {
+    Write-Log '-- Disk space --'
+    try {
+        Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object {
+            $pct = if ($_.Size) { [math]::Round((($_.Size - $_.FreeSpace)/$_.Size)*100) } else { 0 }
+            Write-Log ("  {0}  {1} GB free of {2} GB  ({3}% used)" -f $_.DeviceID, [math]::Round($_.FreeSpace/1GB,1), [math]::Round($_.Size/1GB,1), $pct)
+        }
+    } catch { Write-Log '  Disk space query failed.' }
+    # Largest folders under a given root (default C:\Users)
+    Write-Log '  Largest folders (top 6):'
+    try {
+        Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            [PSCustomObject]@{ Path=$_.FullName; Size=(Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum }
+        } | Sort-Object Size -Descending | Select-Object -First 6 | ForEach-Object {
+            Write-Log ("    {0}  ~{1} GB" -f $_.Path, [math]::Round($_.Size/1GB,1))
+        }
+    } catch { Write-Log '  Folder scan failed.' }
+}
+
+function Get-ResourceReport {
+    Write-Log '-- System resources --'
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $totalRam = $os.TotalVisibleMemorySize; $freeRam = $os.FreePhysicalMemory
+        Write-Log ("  Memory: {0}% used ({1} GB of {2} GB)" -f [math]::Round((($totalRam-$freeRam)/$totalRam)*100), [math]::Round(($totalRam-$freeRam)/1MB,1), [math]::Round($totalRam/1MB,1))
+    } catch { Write-Log '  Memory query failed.' }
+    try {
+        $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+        Write-Log ("  CPU load: {0}%" -f $cpu)
+    } catch { Write-Log '  CPU query failed.' }
+    Write-Log '  Top processes by memory:'
+    Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 5 | ForEach-Object {
+        Write-Log ("    {0}  {1} MB" -f $_.ProcessName, [math]::Round($_.WorkingSet64/1MB,1))
+    }
+}
+
+function Get-PowerBatteryReport {
+    Write-Log '-- Power / battery --'
+    try {
+        $plan = (powercfg /getactivescheme 2>&1 | Out-String)
+        Write-Log ("  Active power plan: " + (($plan -split ':')[-1].Trim()))
+    } catch { Write-Log '  Power plan query failed.' }
+    $isBattery = [bool](Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue)
+    if ($isBattery) {
+        try { $b = Get-CimInstance Win32_Battery; Write-Log ("  Battery: {0}% (status {1})" -f $b.EstimatedChargeRemaining, $b.BatteryStatus) } catch { Write-Log '  Battery query failed.' }
+        Write-Log '  Run `powercfg /batteryreport` in a terminal for a full battery-health report.'
+    } else {
+        Write-Log '  No battery detected (desktop).'
+    }
+}
+
+function Get-DiagnosticsReport {
+    Get-DriveHealthReport
+    Get-DiskSpaceReport
+    Get-ResourceReport
+    Get-PowerBatteryReport
+}
+
 $script:LibReviewLoaded = $true
+

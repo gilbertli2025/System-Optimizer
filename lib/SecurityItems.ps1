@@ -27,16 +27,16 @@ $ErrorActionPreference = 'Stop'
 # Item metadata (used by every UI for checkbox text + tooltip)
 # --------------------------------------------------------------------------
 $script:SecurityItems = @(
-    @{ id='cloud';     text='Defender cloud protection (block at first sight)' }
-    @{ id='firewall';  text='Firewall: block all unsolicited inbound by default' }
-    @{ id='scan';      text='Daily Defender quick scan at 03:00' }
-    @{ id='lock';      text='Auto-lock the screen after 10 min idle' }
-    @{ id='browsers';  text='Harden Edge + Chrome browsers' }
-    @{ id='restore';   text='Enable System Restore + weekly restore points' }
-    @{ id='bitlocker'; text='BitLocker on C: (TPM) - protect against theft' }
-    @{ id='autorun';   text='Disable AutoRun on removable drives' }
-    @{ id='lockout';   text='Account lockout (5 tries / 15 min)' }
-    @{ id='officewsh'; text='Block Office macros from internet + disable Script Host' }
+    @{ id='cloud';     text='Defender cloud protection (block at first sight)'; desc='Turns on Microsoft cloud protection so Defender can stop brand-new malware fast using cloud reputation. Sends limited malware/URL info to Microsoft.' }
+    @{ id='firewall';  text='Firewall: block all unsolicited inbound by default'; desc='Makes Windows block unsolicited incoming connections by default. Outbound and existing connections still work. Good for security; may need allow rules for file sharing or remote management.' }
+    @{ id='scan';      text='Daily Defender quick scan at 03:00'; desc='Schedules a daily quick scan of common infection points at 3am.' }
+    @{ id='lock';      text='Auto-lock the screen after 10 min idle'; desc='Locks your PC after 10 minutes idle so others need your password/PIN to get in.' }
+    @{ id='browsers';  text='Harden Edge + Chrome browsers'; desc='Turns on Safe Browsing/SmartScreen, blocks dangerous downloads, third-party cookies, popups, WebUSB/WebSerial, and credit-card autofill. Some sites that rely on third-party cookies may not work.' }
+    @{ id='restore';   text='Enable System Restore + weekly restore points'; desc='Turns on System Restore and makes a weekly restore point (Sunday 4am) so you can undo bad system changes like drivers or updates. Not a backup of your files.' }
+    @{ id='bitlocker'; text='BitLocker on C: (TPM) - protect against theft'; desc='Encrypts your system drive so data cannot be read if the PC is stolen. Needs Windows Pro + a TPM. Runs in the background.' }
+    @{ id='autorun';   text='Disable AutoRun on removable drives'; desc='Stops USB sticks and removable drives from auto-running software - blocks a common malware trick.' }
+    @{ id='lockout';   text='Account lockout (5 tries / 15 min)'; desc='After 5 failed sign-ins the account locks for 15 minutes, slowing password-guessing. Be careful not to lock yourself out.' }
+    @{ id='officewsh'; text='Block Office macros from internet + disable Script Host'; desc='Blocks Office macros from internet files and disables VBS/JS scripts - two common malware entry points. May block some legitimate scripts/macros.' }
 )
 
 # --------------------------------------------------------------------------

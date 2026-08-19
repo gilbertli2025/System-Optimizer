@@ -157,10 +157,12 @@ $btnApplySec = New-Object System.Windows.Forms.Button; $btnApplySec.Text = 'Appl
 $btnRestoreSec = New-Object System.Windows.Forms.Button; $btnRestoreSec.Text = 'Restore security'; $btnRestoreSec.Size = New-Object System.Drawing.Size(130,30); $btnRestoreSec.Location = New-Object System.Drawing.Point(164, 336)
 $btnReviewSec = New-Object System.Windows.Forms.Button; $btnReviewSec.Text = 'Security review'; $btnReviewSec.Size = New-Object System.Drawing.Size(130,30); $btnReviewSec.Location = New-Object System.Drawing.Point(302, 336)
 $btnRestoreCheckedSec = New-Object System.Windows.Forms.Button; $btnRestoreCheckedSec.Text = 'Restore checked'; $btnRestoreCheckedSec.Size = New-Object System.Drawing.Size(150,30); $btnRestoreCheckedSec.Location = New-Object System.Drawing.Point(440, 336)
+$btnExplainSec = New-Object System.Windows.Forms.Button; $btnExplainSec.Text = 'Explain this'; $btnExplainSec.Size = New-Object System.Drawing.Size(120,30); $btnExplainSec.Location = New-Object System.Drawing.Point(598, 336)
 $tabSec.Controls.Add($btnApplySec) | Out-Null
 $tabSec.Controls.Add($btnRestoreSec) | Out-Null
 $tabSec.Controls.Add($btnReviewSec) | Out-Null
 $tabSec.Controls.Add($btnRestoreCheckedSec) | Out-Null
+$tabSec.Controls.Add($btnExplainSec) | Out-Null
 
 $tabs.TabPages.Add($tabSec) | Out-Null
 
@@ -197,9 +199,11 @@ $tabMaint.Controls.Add($gbMaint) | Out-Null
 $btnMaintRun = New-Object System.Windows.Forms.Button; $btnMaintRun.Text = 'Run selected cleanup'; $btnMaintRun.Size = New-Object System.Drawing.Size(150,30); $btnMaintRun.Location = New-Object System.Drawing.Point(6, 336)
 $btnMaintRestore = New-Object System.Windows.Forms.Button; $btnMaintRestore.Text = 'Restore settings'; $btnMaintRestore.Size = New-Object System.Drawing.Size(140,30); $btnMaintRestore.Location = New-Object System.Drawing.Point(164, 336)
 $btnMaintReport = New-Object System.Windows.Forms.Button; $btnMaintReport.Text = 'Cleanup report'; $btnMaintReport.Size = New-Object System.Drawing.Size(130,30); $btnMaintReport.Location = New-Object System.Drawing.Point(312, 336)
+$btnExplainMaint = New-Object System.Windows.Forms.Button; $btnExplainMaint.Text = 'Explain this'; $btnExplainMaint.Size = New-Object System.Drawing.Size(120,30); $btnExplainMaint.Location = New-Object System.Drawing.Point(450, 336)
 $tabMaint.Controls.Add($btnMaintRun) | Out-Null
 $tabMaint.Controls.Add($btnMaintRestore) | Out-Null
 $tabMaint.Controls.Add($btnMaintReport) | Out-Null
+$tabMaint.Controls.Add($btnExplainMaint) | Out-Null
 
 $lblMaintHint = New-Object System.Windows.Forms.Label
 $lblMaintHint.Text = "TIP: items 1-5 and 11-12 are safe and pre-ticked. Items 6-10 and 13 are optional/off (may delete recoverable files, change visuals/power, or auto-clean restore points). Reversible settings can be undone with 'Restore settings'."
@@ -257,14 +261,20 @@ $tabs.TabPages.Add($tabRepair) | Out-Null
 # --------------------------------------------------------------------------
 # Bottom master controls
 # --------------------------------------------------------------------------
-$btnApplyAll = New-Object System.Windows.Forms.Button; $btnApplyAll.Text = 'Apply ALL selected'; $btnApplyAll.Size = New-Object System.Drawing.Size(180,34); $btnApplyAll.Location = New-Object System.Drawing.Point(10, 442)
-$btnRestoreAll = New-Object System.Windows.Forms.Button; $btnRestoreAll.Text = 'Restore ALL to defaults'; $btnRestoreAll.Size = New-Object System.Drawing.Size(190,34); $btnRestoreAll.Location = New-Object System.Drawing.Point(200, 442)
-$btnReviewAll = New-Object System.Windows.Forms.Button; $btnReviewAll.Text = 'Full review / verify'; $btnReviewAll.Size = New-Object System.Drawing.Size(160,34); $btnReviewAll.Location = New-Object System.Drawing.Point(400, 442)
-$btnHelp = New-Object System.Windows.Forms.Button; $btnHelp.Text = 'Help / settings guide'; $btnHelp.Size = New-Object System.Drawing.Size(170,34); $btnHelp.Location = New-Object System.Drawing.Point(570, 442)
+$btnApplyAll = New-Object System.Windows.Forms.Button; $btnApplyAll.Text = 'Apply ALL selected'; $btnApplyAll.Size = New-Object System.Drawing.Size(150,34); $btnApplyAll.Location = New-Object System.Drawing.Point(10, 442)
+$btnRestoreAll = New-Object System.Windows.Forms.Button; $btnRestoreAll.Text = 'Restore ALL'; $btnRestoreAll.Size = New-Object System.Drawing.Size(120,34); $btnRestoreAll.Location = New-Object System.Drawing.Point(168, 442)
+$btnReviewAll = New-Object System.Windows.Forms.Button; $btnReviewAll.Text = 'Full review'; $btnReviewAll.Size = New-Object System.Drawing.Size(120,34); $btnReviewAll.Location = New-Object System.Drawing.Point(296, 442)
+$btnHelp = New-Object System.Windows.Forms.Button; $btnHelp.Text = 'Help'; $btnHelp.Size = New-Object System.Drawing.Size(80,34); $btnHelp.Location = New-Object System.Drawing.Point(424, 442)
+$btnExport = New-Object System.Windows.Forms.Button; $btnExport.Text = 'Export'; $btnExport.Size = New-Object System.Drawing.Size(80,34); $btnExport.Location = New-Object System.Drawing.Point(512, 442)
+$btnImport = New-Object System.Windows.Forms.Button; $btnImport.Text = 'Import'; $btnImport.Size = New-Object System.Drawing.Size(80,34); $btnImport.Location = New-Object System.Drawing.Point(600, 442)
+$btnUndoLast = New-Object System.Windows.Forms.Button; $btnUndoLast.Text = 'Undo last'; $btnUndoLast.Size = New-Object System.Drawing.Size(90,34); $btnUndoLast.Location = New-Object System.Drawing.Point(690, 442)
 $form.Controls.Add($btnApplyAll) | Out-Null
 $form.Controls.Add($btnRestoreAll) | Out-Null
 $form.Controls.Add($btnReviewAll) | Out-Null
 $form.Controls.Add($btnHelp) | Out-Null
+$form.Controls.Add($btnExport) | Out-Null
+$form.Controls.Add($btnImport) | Out-Null
+$form.Controls.Add($btnUndoLast) | Out-Null
 
 $lblLog = New-Object System.Windows.Forms.Label; $lblLog.Text = 'Log:'; $lblLog.Location = New-Object System.Drawing.Point(10, 486)
 $form.Controls.Add($lblLog) | Out-Null
@@ -291,16 +301,99 @@ $script:LogSink = {
 }
 
 # --------------------------------------------------------------------------
+# v1.4 helpers: Explain this, Export/Import settings
+# --------------------------------------------------------------------------
+function Show-ItemExplanations {
+    param($Items, $Checks)
+    $checked = @($Checks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+    if ($checked.Count -eq 0) { Show-Message 'Tick the items you want to learn about.' 'Explain' Warn; return }
+    $lines = @()
+    foreach ($it in $Items) {
+        if ($checked -contains $it.id) {
+            $d = if ($it.desc) { $it.desc } else { '(no description)' }
+            $lines += ($it.text + "`n    " + $d)
+        }
+    }
+    Show-Message ($lines -join "`n`n") 'What these do' Info
+}
+
+function Export-Settings {
+    $data = @{
+        services = @($script:svcChecks  | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        security = @($script:secChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        maint    = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        repair   = @($script:repairChecks| Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+    }
+    $dlg = New-Object System.Windows.Forms.SaveFileDialog
+    $dlg.Filter = 'JSON settings|*.json'
+    $dlg.FileName = 'System-Optimizer-profile.json'
+    if ($dlg.ShowDialog() -eq 'OK') {
+        try { $data | ConvertTo-Json | Set-Content -LiteralPath $dlg.FileName -Encoding UTF8; Show-Message ("Settings saved to " + $dlg.FileName) 'Export' Info }
+        catch { Show-Message ("Export failed: " + $_.Exception.Message) 'Error' }
+    }
+}
+
+function Import-Settings {
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = 'JSON settings|*.json'
+    if ($dlg.ShowDialog() -eq 'OK') {
+        try {
+            $d = Get-Content -LiteralPath $dlg.FileName -Raw | ConvertFrom-Json
+            foreach ($cb in $script:svcChecks)   { $cb.Checked = @($d.services) -contains $cb.Tag }
+            foreach ($cb in $script:secChecks)   { $cb.Checked = @($d.security) -contains $cb.Tag }
+            foreach ($cb in $script:maintChecks) { $cb.Checked = @($d.maint)    -contains $cb.Tag }
+            foreach ($cb in $script:repairChecks){ $cb.Checked = @($d.repair)   -contains $cb.Tag }
+            Show-Message 'Settings imported. Review the checkboxes before applying.' 'Import' Info
+        } catch { Show-Message ("Import failed: " + $_.Exception.Message) 'Error' }
+    }
+}
+
+function Save-LastRun {
+    param([string[]]$services = @(), [string[]]$security = @(), [string[]]$maint = @())
+    $data = @{ time = (Get-Date).ToString('o'); services = @($services); security = @($security); maint = @($maint) }
+    New-Item -ItemType Directory -Path $script:Paths.SystemBackup -Force | Out-Null
+    $data | ConvertTo-Json | Set-Content -LiteralPath $script:Paths.LastRunFile -Encoding UTF8
+}
+
+function Undo-LastRun {
+    $p = $script:Paths.LastRunFile
+    if (-not (Test-Path -LiteralPath $p)) { Show-Message 'No last run recorded to undo.' 'Undo last' Warn; return }
+    try {
+        $d = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+        Write-Log '=== Undo last run ==='
+        $svc = @($d.services); $sec = @($d.security); $mt = @($d.maint)
+        if ($svc.Count -gt 0) {
+            $rows = @(Read-CsvRows -Path $script:Paths.ServicesBackupFile | Where-Object { $svc -contains $_.Name })
+            Restore-ServicesRows -Rows $rows
+        }
+        if ($sec.Count -gt 0) { Restore-SecurityItems -Ids $sec }
+        if ($mt.Count -gt 0)  { Restore-MaintenanceItems -Ids $mt }
+        Write-Log '=== Undo last run finished ==='
+        Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+        Show-Message 'Last run undone.' 'Undo last' Info
+    } catch {
+        Write-Log "ERROR undo last: $($_.Exception.Message)"
+        Show-Message ("Undo failed: " + $_.Exception.Message) 'Error'
+    }
+}
+
+# --------------------------------------------------------------------------
 # Click handlers
 # --------------------------------------------------------------------------
 $btnDisable.add_Click({
-    $names = @($script:svcChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-    if ($names.Count -eq 0) { Show-Message 'Select at least one service.' 'Nothing selected' Warn; return }
-    Write-Log '=== Services optimize started ==='
-    Backup-ServicesSnapshot
-    Disable-Services -Names $names
-    Write-Log '=== Services optimize finished ==='
-    Show-Message "Done. $($names.Count) services processed. Reboot recommended." 'Finished' Info
+    try {
+        $names = @($script:svcChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        if ($names.Count -eq 0) { Show-Message 'Select at least one service.' 'Nothing selected' Warn; return }
+        Write-Log '=== Services optimize started ==='
+        Backup-ServicesSnapshot
+        Disable-Services -Names $names
+        Write-Log '=== Services optimize finished ==='
+        Save-LastRun -services $names
+        Show-Message "Done. $($names.Count) services processed. Reboot recommended." 'Finished' Info
+    } catch {
+        Write-Log "ERROR: $($_.Exception.Message)"
+        Show-Message ("Could not complete: " + $_.Exception.Message) 'Error'
+    }
 })
 
 $btnRestoreSvc.add_Click({
@@ -334,6 +427,7 @@ $btnApplySec.add_Click({
     Write-Log '=== Security hardening started ==='
     foreach ($id in $ids) { Apply-SecurityItem -Id $id }
     Write-Log '=== Security hardening finished ==='
+    Save-LastRun -security $ids
     Show-Message 'Hardening applied. A reboot is recommended.' 'Finished' Info
 })
 
@@ -354,20 +448,26 @@ $btnRestoreCheckedSec.add_Click({
 })
 
 $btnApplyAll.add_Click({
-    # Confirm before destructive / risky items even when run via "Apply ALL".
-    $maintIds = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-    $secIds   = @($script:secChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-    if ($secIds -contains 'bitlocker' -or $secIds -contains 'officewsh' -or $secIds -contains 'lockout' `
-        -or $maintIds -contains 'recyclebin' -or $maintIds -contains 'cleantemp' -or $maintIds -contains 'browscache') {
-        if (-not (Show-YesNo 'Apply ALL will also: enable BitLocker, disable Script Host + macros, set account lockout, empty the recycle bin, clear temp + browser caches.`n`nProceed?' 'Confirm' Warn)) { return }
+    try {
+        # Confirm before destructive / risky items even when run via "Apply ALL".
+        $maintIds = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        $secIds   = @($script:secChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        if ($secIds -contains 'bitlocker' -or $secIds -contains 'officewsh' -or $secIds -contains 'lockout' `
+            -or $maintIds -contains 'recyclebin' -or $maintIds -contains 'cleantemp' -or $maintIds -contains 'browscache') {
+            if (-not (Show-YesNo 'Apply ALL will also: enable BitLocker, disable Script Host + macros, set account lockout, empty the recycle bin, clear temp + browser caches.`n`nProceed?' 'Confirm' Warn)) { return }
+        }
+        $svc = @($script:svcChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        Write-Log '===== APPLY ALL ====='
+        if ($svc.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svc }
+        foreach ($id in $secIds)   { Apply-SecurityItem -Id $id }
+        foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id }
+        Write-Log '===== APPLY ALL finished ====='
+        Save-LastRun -services $svc -security $secIds -maint $maintIds
+        Show-Message 'All selected items applied. A reboot is recommended.' 'Finished' Info
+    } catch {
+        Write-Log "ERROR: $($_.Exception.Message)"
+        Show-Message ("Could not complete: " + $_.Exception.Message) 'Error'
     }
-    $svc = @($script:svcChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-    Write-Log '===== APPLY ALL ====='
-    if ($svc.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svc }
-    foreach ($id in $secIds)   { Apply-SecurityItem -Id $id }
-    foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id }
-    Write-Log '===== APPLY ALL finished ====='
-    Show-Message 'All selected items applied. A reboot is recommended.' 'Finished' Info
 })
 
 $btnRestoreAll.add_Click({
@@ -384,9 +484,15 @@ $btnReviewAll.add_Click({
     Test-ServicesDisabled
     Save-SecurityReview
     Get-MaintenanceReport
+    Get-DiagnosticsReport
 })
 
 $btnHelp.add_Click({ Show-SoHelpWindow })
+$btnExplainSec.add_Click({ Show-ItemExplanations -Items $script:SecurityItems -Checks $script:secChecks })
+$btnExplainMaint.add_Click({ Show-ItemExplanations -Items $script:MaintenanceItems -Checks $script:maintChecks })
+$btnExport.add_Click({ Export-Settings })
+$btnImport.add_Click({ Import-Settings })
+$btnUndoLast.add_Click({ Undo-LastRun })
 
 $btnMaintRun.add_Click({
     $ids = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
@@ -397,6 +503,7 @@ $btnMaintRun.add_Click({
     Write-Log '=== Maintenance started ==='
     foreach ($id in $ids) { Invoke-MaintenanceItem -Id $id }
     Write-Log '=== Maintenance finished ==='
+    Save-LastRun -maint $ids
     Show-Message 'Cleanup finished.' 'Finished' Info
 })
 

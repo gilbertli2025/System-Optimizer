@@ -111,10 +111,21 @@ function Backup-ServicesSnapshot {
     if (Test-Path -LiteralPath $snapPath) {
         try { Copy-Item -LiteralPath $snapPath -Destination $bakPath -Force } catch { }
     }
-    $all = Get-CimInstance Win32_Service | Select-Object Name, StartMode, State
-    $all | Export-Csv -LiteralPath $snapPath -NoTypeInformation
-    if (-not (Test-Path -LiteralPath $script:Paths.ServicesBackupFile)) {
-        @() | Export-Csv -LiteralPath $script:Paths.ServicesBackupFile -NoTypeInformation
+    # BUG FIX (v1.4): if the tool is not running as admin, writing to %ProgramData%
+    # is denied. Catch that and show a clear message instead of a crash dialog.
+    try {
+        $all = Get-CimInstance Win32_Service | Select-Object Name, StartMode, State
+        $all | Export-Csv -LiteralPath $snapPath -NoTypeInformation -ErrorAction Stop
+        if (-not (Test-Path -LiteralPath $script:Paths.ServicesBackupFile)) {
+            @() | Export-Csv -LiteralPath $script:Paths.ServicesBackupFile -NoTypeInformation -ErrorAction Stop
+        }
+    } catch {
+        $msg = $_.Exception.Message
+        Write-Log "ERROR writing services backup: $msg"
+        if ($msg -match 'denied') {
+            Write-Log "The app must be run as Administrator to write to %ProgramData%."
+        }
+        throw "Could not write the services backup. Please run System Optimizer as Administrator. ($msg)"
     }
 }
 

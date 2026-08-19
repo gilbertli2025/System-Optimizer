@@ -11,19 +11,19 @@ $ErrorActionPreference = 'Stop'
 # Item metadata
 # --------------------------------------------------------------------------
 $script:MaintenanceItems = @(
-    @{ id='cleantemp';    text='Clear temporary files (user + Windows temp)';      reversible=$false }
-    @{ id='wucleanup';    text='Windows Update cleanup (StartComponentCleanup)';  reversible=$false }
-    @{ id='trimssd';      text='Re-trim SSD (Optimize-Volume C:)';                reversible=$false }
-    @{ id='flushdns';     text='Flush DNS cache';                                  reversible=$false }
-    @{ id='gamedvr';      text='Disable Game DVR background recording';           reversible=$true  }
-    @{ id='storagesense'; text='Enable Storage Sense (auto temp + recycle-bin cleanup)'; reversible=$true }
-    @{ id='recyclebin';   text='Empty Recycle Bin';                                reversible=$false }
-    @{ id='browscache';   text='Clear Edge + Chrome browser cache';               reversible=$false }
-    @{ id='startupapps';  text='Disable third-party startup apps (current user)';  reversible=$true  }
-    @{ id='vfxperf';      text='Visual effects -> best performance';               reversible=$true  }
-    @{ id='faststartup';  text='Enable Fast Startup (faster boot)';                reversible=$true  }
-    @{ id='tips';         text='Disable Windows tips & suggestions';               reversible=$true  }
-    @{ id='powerplan';    text='Power plan -> High performance (battery drains faster)'; reversible=$true }
+    @{ id='cleantemp';    text='Clear temporary files (user + Windows temp)'; reversible=$false; desc='Deletes temporary files to free space. Files in use are skipped.' }
+    @{ id='wucleanup';    text='Windows Update cleanup (StartComponentCleanup)';  reversible=$false; desc='Removes old, superseded Windows Update files to free space. Can take several minutes.' }
+    @{ id='trimssd';      text='Re-trim SSD (Optimize-Volume C:)';                reversible=$false; desc='Sends the TRIM command to an SSD so it stays fast. Safe.' }
+    @{ id='flushdns';     text='Flush DNS cache';                                  reversible=$false; desc='Clears the DNS cache, which can fix some website connection issues.' }
+    @{ id='gamedvr';      text='Disable Game DVR background recording';           reversible=$true;  desc='Turns off background Game DVR recording to free RAM/GPU. Reversible.' }
+    @{ id='storagesense'; text='Enable Storage Sense (auto temp + recycle-bin cleanup)'; reversible=$true; desc='Lets Windows automatically clean temp files and the recycle bin. May also delete old restore points and Downloads. Reversible.' }
+    @{ id='recyclebin';   text='Empty Recycle Bin';                                reversible=$false; desc='Permanently empties the Recycle Bin to free space. Deleted files cannot be recovered.' }
+    @{ id='browscache';   text='Clear Edge + Chrome browser cache';               reversible=$false; desc='Clears cached web files to free space; pages load a bit slower the first time. Reversible via browsing normally.' }
+    @{ id='startupapps';  text='Disable third-party startup apps (current user)';  reversible=$true;  desc='Disables third-party apps that start at login to speed up boot. Reversible. Affects only the current user.' }
+    @{ id='vfxperf';      text='Visual effects -> best performance';               reversible=$true;  desc='Turns off visual animations for a snappier feel. Minor on new PCs, helps older ones. Reversible.' }
+    @{ id='faststartup';  text='Enable Fast Startup (faster boot)';                reversible=$true;  desc='Enables Fast Startup for a quicker boot. On laptops shutdown becomes a hybrid. Reversible.' }
+    @{ id='tips';         text='Disable Windows tips & suggestions';               reversible=$true;  desc='Turns off Windows tips and suggestions so there are fewer notifications. Reversible.' }
+    @{ id='powerplan';    text='Power plan -> High performance (battery drains faster)'; reversible=$true; desc='Switches to the High performance power plan. Faster, but drains laptop battery sooner. Reversible.' }
 )
 
 # --------------------------------------------------------------------------
@@ -118,6 +118,12 @@ function Invoke-ClearBrowserCache {
 function Invoke-StartupCleanup {
     $k  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     $hklm = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
+    # v1.4: whitelist - never disable security / essential / common sync apps.
+    $whitelist = 'Defender','SecurityHealth','WindowsSecurity','OneDrive','Dropbox','Avast','Norton','Malwarebytes','Intel','NVIDIA','Realtek','Logitech','SynTP','AdobeGCInvoker','MicrosoftEdgeAutoLaunch','Backup','Samsung'
+    function Test-Whitelisted([string]$n) {
+        foreach ($w in $whitelist) { if ($n -like "*$w*") { return $true } }
+        return $false
+    }
     $backed = @{}
     if (Test-Path -LiteralPath $k) {
         foreach ($v in (Get-Item -LiteralPath $k).Property) {
@@ -125,11 +131,12 @@ function Invoke-StartupCleanup {
         }
     }
     Set-KeyedRow -Path $script:Paths.MaintBackupFile -Key 'startupapps' -Value ($backed | ConvertTo-Json -Compress)
-    $disabled = 0
+    $disabled = 0; $skipped = 0
     if (Test-Path -LiteralPath $k) {
         $runValues = @((Get-Item -LiteralPath $k).Property)
         foreach ($v in $runValues) {
             if ([string]::IsNullOrWhiteSpace([string]$v)) { continue }
+            if (Test-Whitelisted $v) { Write-Log "SKIP (whitelisted): $v"; $skipped++; continue }
             try {
                 $data = (Get-ItemProperty -LiteralPath $k -Name $v -ErrorAction Stop).$v
                 Set-ItemProperty -LiteralPath $k -Name ($v + '.disabled') -Value $data -ErrorAction Stop
@@ -142,7 +149,7 @@ function Invoke-StartupCleanup {
     if (Test-Path -LiteralPath $hklm) {
         Write-Log ("All-users (HKLM) startup entries (listed, NOT disabled): " + ((Get-Item -LiteralPath $hklm).Property -join ', '))
     }
-    Write-Log "Startup apps cleanup done ($disabled disabled, reversible)."
+    Write-Log "Startup apps cleanup done ($disabled disabled, $skipped kept safe, reversible)."
 }
 
 function Invoke-VfxPerformance {
@@ -240,6 +247,83 @@ function Invoke-MaintenanceItem {
 # --------------------------------------------------------------------------
 # Restore
 # --------------------------------------------------------------------------
+function Restore-MaintenanceEntry {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][object]$Row)
+    try {
+        switch ($Row.Name) {
+            'gamedvr' {
+                $k = 'HKCU:\System\GameConfigStore'
+                if (-not [string]::IsNullOrWhiteSpace([string]$Row.Value)) {
+                    Set-RegDword $k 'GameDVR_Enabled' ([int]$Row.Value)
+                } else { Remove-RegValue $k 'GameDVR_Enabled' }
+                Write-Log "RESTORED: Game DVR"
+            }
+            'storagesense' {
+                $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy'
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                if (-not [string]::IsNullOrWhiteSpace([string]$o.enabled)) {
+                    Set-RegDword $k '01' ([int]$o.enabled)
+                } else { Remove-RegValue $k '01' }
+                Write-Log "RESTORED: Storage Sense"
+            }
+            'vfxperf' {
+                $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'
+                if (-not [string]::IsNullOrWhiteSpace([string]$Row.Value)) {
+                    Set-RegDword $k 'VisualFXSetting' ([int]$Row.Value)
+                } else { Remove-RegValue $k 'VisualFXSetting' }
+                Write-Log "RESTORED: visual effects"
+            }
+            'startupapps' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+                foreach ($p in $o.PSObject.Properties) {
+                    $valname = $p.Name -replace '^.*\\', ''
+                    $orig    = $valname -replace '\.disabled$', ''
+                    $data    = $p.Value
+                    if ($data -and $data -ne 'null') {
+                        try { Set-ItemProperty -LiteralPath $k -Name $orig -Value $data -ErrorAction Stop } catch {
+                            Write-Log "WARN restore startup $orig : $($_.Exception.Message)"
+                        }
+                    }
+                    try { Remove-ItemProperty -LiteralPath $k -Name $valname -ErrorAction SilentlyContinue } catch { }
+                }
+                Write-Log "RESTORED: startup apps"
+            }
+            'faststartup' {
+                $k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
+                if (-not [string]::IsNullOrWhiteSpace([string]$Row.Value)) {
+                    Set-RegDword $k 'HiberbootEnabled' ([int]$Row.Value)
+                } else { Remove-RegValue $k 'HiberbootEnabled' }
+                Write-Log "RESTORED: Fast Startup"
+            }
+            'tips' {
+                $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
+                $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+                foreach ($n in 'SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled') {
+                    if ($o.PSObject.Properties[$n] -and $null -ne $o.$n -and ([string]$o.$n) -ne '') {
+                        Set-RegDword $k $n ([int]$o.$n)
+                    } else { Remove-RegValue $k $n }
+                }
+                Write-Log "RESTORED: tips & suggestions"
+            }
+            'powerplan' {
+                if ($Row.Value -and [string]$Row.Value -match '^[0-9a-fA-F-]{36}$') {
+                    try { powercfg /setactive ([string]$Row.Value) | Out-Null; Write-Log "RESTORED: power plan" }
+                    catch { Write-Log "WARN restore power plan: $($_.Exception.Message)"; throw }
+                } else {
+                    Write-Log "Could not restore power plan (backup value was not a GUID)."
+                }
+            }
+            default { Write-Log "WARN: unknown maintenance row '$($Row.Name)'" }
+        }
+        return $true
+    } catch {
+        Write-Log "ERROR restoring $($Row.Name): $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Restore-Maintenance {
     [CmdletBinding()]
     $rows = Read-JsonArray -Path $script:Paths.MaintBackupFile
@@ -248,78 +332,7 @@ function Restore-Maintenance {
     $anyFailed = $false
     $successIds = @()
     foreach ($row in $rows) {
-        try {
-            switch ($row.Name) {
-                'gamedvr' {
-                    $k = 'HKCU:\System\GameConfigStore'
-                    if (-not [string]::IsNullOrWhiteSpace([string]$row.Value)) {
-                        Set-RegDword $k 'GameDVR_Enabled' ([int]$row.Value)
-                    } else { Remove-RegValue $k 'GameDVR_Enabled' }
-                    Write-Log "RESTORED: Game DVR"
-                }
-                'storagesense' {
-                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy'
-                    $o = $row.Value | ConvertFrom-Json -ErrorAction Stop
-                    if (-not [string]::IsNullOrWhiteSpace([string]$o.enabled)) {
-                        Set-RegDword $k '01' ([int]$o.enabled)
-                    } else { Remove-RegValue $k '01' }
-                    Write-Log "RESTORED: Storage Sense"
-                }
-                'vfxperf' {
-                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'
-                    if (-not [string]::IsNullOrWhiteSpace([string]$row.Value)) {
-                        Set-RegDword $k 'VisualFXSetting' ([int]$row.Value)
-                    } else { Remove-RegValue $k 'VisualFXSetting' }
-                    Write-Log "RESTORED: visual effects"
-                }
-                'startupapps' {
-                    $o = $row.Value | ConvertFrom-Json -ErrorAction Stop
-                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-                    foreach ($p in $o.PSObject.Properties) {
-                        $valname = $p.Name -replace '^.*\\', ''
-                        $orig    = $valname -replace '\.disabled$', ''
-                        $data    = $p.Value
-                        if ($data -and $data -ne 'null') {
-                            try { Set-ItemProperty -LiteralPath $k -Name $orig -Value $data -ErrorAction Stop } catch {
-                                Write-Log "WARN restore startup $orig : $($_.Exception.Message)"
-                            }
-                        }
-                        try { Remove-ItemProperty -LiteralPath $k -Name $valname -ErrorAction SilentlyContinue } catch { }
-                    }
-                    Write-Log "RESTORED: startup apps"
-                }
-                'faststartup' {
-                    $k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'
-                    if (-not [string]::IsNullOrWhiteSpace([string]$row.Value)) {
-                        Set-RegDword $k 'HiberbootEnabled' ([int]$row.Value)
-                    } else { Remove-RegValue $k 'HiberbootEnabled' }
-                    Write-Log "RESTORED: Fast Startup"
-                }
-                'tips' {
-                    $o = $row.Value | ConvertFrom-Json -ErrorAction Stop
-                    $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-                    foreach ($n in 'SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled') {
-                        if ($o.PSObject.Properties[$n] -and $null -ne $o.$n -and ([string]$o.$n) -ne '') {
-                            Set-RegDword $k $n ([int]$o.$n)
-                        } else { Remove-RegValue $k $n }
-                    }
-                    Write-Log "RESTORED: tips & suggestions"
-                }
-                'powerplan' {
-                    if ($row.Value -and [string]$row.Value -match '^[0-9a-fA-F-]{36}$') {
-                        try { powercfg /setactive ([string]$row.Value) | Out-Null; Write-Log "RESTORED: power plan" }
-                        catch { Write-Log "WARN restore power plan: $($_.Exception.Message)"; throw }
-                    } else {
-                        Write-Log "Could not restore power plan (backup value was not a GUID)."
-                    }
-                }
-                default { Write-Log "WARN: unknown maintenance row '$($row.Name)'" }
-            }
-            $successIds += $row.Name
-        } catch {
-            Write-Log "ERROR restoring $($row.Name): $($_.Exception.Message)"
-            $anyFailed = $true
-        }
+        if (Restore-MaintenanceEntry -Row $row) { $successIds += $row.Name } else { $anyFailed = $true }
     }
     if (-not $anyFailed) {
         Remove-Item -LiteralPath $script:Paths.MaintBackupFile -Force -ErrorAction SilentlyContinue
@@ -333,6 +346,30 @@ function Restore-Maintenance {
         Write-Log "WARNING: some maintenance items failed. Backup file kept for retry."
     }
     Write-Log "=== Maintenance restore finished ==="
+}
+
+function Restore-MaintenanceItems {
+    [CmdletBinding()]
+    param([string[]]$Ids)
+    $rows = Read-JsonArray -Path $script:Paths.MaintBackupFile
+    if ($rows.Count -eq 0) { Write-Log "No maintenance backup - nothing to restore."; return }
+    $restored = 0; $failed = 0; $remaining = @()
+    foreach ($row in $rows) {
+        if ($Ids -contains $row.Name) {
+            if (Restore-MaintenanceEntry -Row $row) { $restored++ } else { $failed++; $remaining += $row }
+        } else {
+            $remaining += $row
+        }
+    }
+    if ($restored -eq 0 -and $failed -eq 0) {
+        Write-Log "None of the requested maintenance items were in the backup."; return
+    }
+    if ($remaining.Count -eq 0) {
+        Remove-Item -LiteralPath $script:Paths.MaintBackupFile -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-JsonArray -Path $script:Paths.MaintBackupFile -Items $remaining
+    }
+    Write-Log "Maintenance restore checked finished ($restored restored, $failed failed)."
 }
 
 $script:LibMaintLoaded = $true

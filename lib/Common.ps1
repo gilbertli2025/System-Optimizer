@@ -50,6 +50,7 @@ function Get-Paths {
             SecurityReviewFile  = Join-Path $sec 'security-review.txt'
             MaintBackupFile     = Join-Path $sys 'maintenance-backup.json'
             UnifiedLog          = Join-Path $sys 'unified.log'
+            LastRunFile         = Join-Path $sys 'lastrun.json'
         }
     }
     return $script:Paths
