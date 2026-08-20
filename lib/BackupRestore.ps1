@@ -78,15 +78,16 @@ function Test-PreFlight {
 # Backup user settings to a chosen folder (prefer a USB drive).
 # --------------------------------------------------------------------------
 function Get-BackupTarget {
-    # Prefer a removable (USB) drive; else ask the user to pick a folder.
+    # Prefer a removable (USB) drive. Use a per-PC subfolder so one USB can
+    # hold backups for several computers and you can tell them apart.
     $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
     if ($removable) {
-        $dir = Join-Path ($removable.DeviceID) 'SystemOptimizer-Backup'
+        $dir = Join-Path (Join-Path ($removable.DeviceID) 'SystemOptimizer-Backup') $env:COMPUTERNAME
         return $dir
     }
     $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
     $dlg.Description = 'Choose where to save the settings backup (a USB drive is best)'
-    if ($dlg.ShowDialog() -eq 'OK') { return $dlg.SelectedPath }
+    if ($dlg.ShowDialog() -eq 'OK') { return (Join-Path $dlg.SelectedPath $env:COMPUTERNAME) }
     return $null
 }
 
