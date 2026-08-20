@@ -250,18 +250,64 @@ function Apply-SystemRestore {
     } catch { Write-Log "WARN checkpoint now: $($_.Exception.Message)" }
 }
 
+function Backup-BitLockerRecoveryKey {
+    try {
+        $v = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction Stop
+        $rp = $v.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
+        if (-not $rp) { Write-Log "NOTE: No BitLocker recovery key protector found."; return }
+
+        # Prefer a removable (USB) drive so the key is OFF this PC.
+        $target = $null
+        $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |
+            Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+        if ($removable) {
+            $target = Join-Path ($removable.DeviceID) ("BitLocker-Recovery-Key-$env:COMPUTERNAME.txt")
+        }
+        if (-not $target) {
+            $target = Join-Path ([Environment]::GetFolderPath('MyDocuments')) ("BitLocker-Recovery-Key-$env:COMPUTERNAME.txt")
+        }
+
+        Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId $rp.KeyProtectorId -KeyPath $target -ErrorAction Stop | Out-Null
+        Write-Log "Recovery key saved to: $target"
+        if (-not $removable) {
+            Write-Log "WARNING: a key file on the C: drive alone will NOT help if you are locked out (it is on the encrypted drive)."
+        }
+        Write-Log "BEST: save it to your Microsoft account at https://aka.ms/myrecoverykey (works from any PC)."
+        Write-Log "Otherwise, copy this file to a USB drive or print it and keep it somewhere safe."
+    } catch {
+        Write-Log "WARN: could not back up the BitLocker recovery key: $($_.Exception.Message)"
+        Write-Log "Please save it manually: Settings > Privacy & security > Device encryption / Manage BitLocker."
+    }
+}
+
 function Apply-BitLocker {
     $bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
     $alreadyOn = ($bl -and $bl.ProtectionStatus -eq 'On')
-    # BUG FIX: single backup row whose Value tells us the original state.
-    $state = if ($alreadyOn) { 'AlreadyOn' } else { 'Disabled' }
-    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'bitlocker' -Value (@{ State = $state } | ConvertTo-Json -Compress)
+
+    # Already on -> record state and leave the drive untouched.
     if ($alreadyOn) {
-        Write-Log "SKIP BitLocker: already on."; return
+        Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'bitlocker' -Value (@{ State = 'AlreadyOn' } | ConvertTo-Json -Compress)
+        Write-Log "SKIP BitLocker: already on. No changes made (already-encrypted drives are left untouched)."
+        return
     }
+
+    # SAFETY RULE (v1.4): never turn BitLocker on unless a USB/removable drive is
+    # present to store the recovery key OFF this PC. This prevents being locked
+    # out (no recoverable key) and keeps the tool safe to use on any PC.
+    $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |
+        Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+    if (-not $removable) {
+        Write-Log "BitLocker was NOT enabled: no USB/removable drive found to store the recovery key."
+        Write-Log "Plug in a USB drive and run again. (Or save the recovery key to your Microsoft account first: aka.ms/myrecoverykey)"
+        Show-Message "BitLocker was NOT enabled because no USB drive was found to store the recovery key.`n`nPlug in a USB drive and run again (or save the recovery key to your Microsoft account: aka.ms/myrecoverykey)." 'BitLocker' Warn
+        return
+    }
+
+    Set-KeyedRow -Path $script:Paths.SecurityBackupFile -Key 'bitlocker' -Value (@{ State = 'Disabled' } | ConvertTo-Json -Compress)
     try {
         Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest -TpmProtector -ErrorAction Stop | Out-Null
         Write-Log "ENABLED: BitLocker on C: (TPM). Encrypting in the background."
+        Backup-BitLockerRecoveryKey
     } catch {
         Write-Log "WARN BitLocker: $($_.Exception.Message)"
         Write-Log "NOTE: BitLocker needs Pro/Enterprise + TPM. On Home use Settings > Privacy & security > Device encryption."
