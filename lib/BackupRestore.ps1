@@ -177,12 +177,18 @@ function Restore-UserSettings {
         $restored++
     }
 
-    # HKCU registry
+    # HKCU registry - warn: only reliable on the SAME PC / same user. On a
+    # different PC the user account SID differs, so settings may not fully apply.
     $regFile = Get-ChildItem $src -Filter 'HKCU-settings-*.reg' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($regFile) {
-        & reg.exe import $regFile.FullName 2>&1 | Out-Null
-        Write-Log "  Restored user registry settings. (You may need to sign out/in for full effect.)"
-        $restored++
+        $samePc = ($regFile.Name -like "*$env:COMPUTERNAME*")
+        if (-not $samePc -and -not (Show-YesNo "This registry backup is from another PC. Registry settings may not fully transfer.`n`nImport it anyway?" 'Restore' Warn)) {
+            Write-Log "  Skipped registry restore (from a different PC)."
+        } else {
+            & reg.exe import $regFile.FullName 2>&1 | Out-Null
+            Write-Log "  Restored user registry settings. (You may need to sign out/in for full effect.)"
+            $restored++
+        }
     }
 
     if ($restored -eq 0) { Write-Log "No restorable settings found in $src." }
