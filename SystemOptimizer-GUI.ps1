@@ -503,6 +503,13 @@ $btnApplyAll.add_Click({
         Write-Log '===== APPLY ALL finished ====='
         Save-LastRun -services $svc -security $secIds -maint $maintIds
         Show-Message 'All selected items applied. A reboot is recommended.' 'Finished' Info
+        # If a USB drive is present, suggest backing up user settings.
+        $rem = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+        if ($rem) {
+            if (Show-YesNo "A USB drive ($($rem.DeviceID)) was detected.`n`nBack up your user settings to it now? (bookmarks, Wi-Fi, settings)" 'Back up settings?' Question) {
+                Backup-UserSettings
+            }
+        }
     } catch {
         Write-Log "ERROR: $($_.Exception.Message)"
         Show-Message ("Could not complete: " + $_.Exception.Message) 'Error'

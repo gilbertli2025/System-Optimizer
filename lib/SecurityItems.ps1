@@ -311,6 +311,7 @@ function Apply-BitLocker {
     } catch {
         Write-Log "WARN BitLocker: $($_.Exception.Message)"
         Write-Log "NOTE: BitLocker needs Pro/Enterprise + TPM. On Home use Settings > Privacy & security > Device encryption."
+        Show-Message "BitLocker could not be enabled.`n`n$($_.Exception.Message)`n`nBitLocker needs Windows Pro/Enterprise and a TPM chip on the PC. This is normal for many PCs - no change was made." 'BitLocker' Warn
     }
 }
 
