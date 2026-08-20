@@ -127,7 +127,7 @@ function Invoke-StartupCleanup {
     $backed = @{}
     if (Test-Path -LiteralPath $k) {
         foreach ($v in (Get-Item -LiteralPath $k).Property) {
-            $backed["${k}\${v}"] = (Get-ItemProperty -LiteralPath $k -Name $v -ErrorAction SilentlyContinue).$v
+            $backed["${k}\${v}"] = (Get-ItemProperty -Path $k -Name $v -ErrorAction SilentlyContinue).$v
         }
     }
     Set-KeyedRow -Path $script:Paths.MaintBackupFile -Key 'startupapps' -Value ($backed | ConvertTo-Json -Compress)
@@ -138,9 +138,9 @@ function Invoke-StartupCleanup {
             if ([string]::IsNullOrWhiteSpace([string]$v)) { continue }
             if (Test-Whitelisted $v) { Write-Log "SKIP (whitelisted): $v"; $skipped++; continue }
             try {
-                $data = (Get-ItemProperty -LiteralPath $k -Name $v -ErrorAction Stop).$v
-                Set-ItemProperty -LiteralPath $k -Name ($v + '.disabled') -Value $data -ErrorAction Stop
-                Remove-ItemProperty -LiteralPath $k -Name $v -ErrorAction Stop
+                $data = (Get-ItemProperty -Path $k -Name $v -ErrorAction Stop).$v
+                Set-ItemProperty -Path $k -Name ($v + '.disabled') -Value $data -ErrorAction Stop
+                Remove-ItemProperty -Path $k -Name $v -ErrorAction Stop
                 Write-Log ("Disabled startup: $v (current user)")
                 $disabled++
             } catch { Write-Log ("WARN disable startup $v : " + $_.Exception.Message) }
@@ -281,12 +281,12 @@ function Restore-MaintenanceEntry {
                     $valname = $p.Name -replace '^.*\\', ''
                     $orig    = $valname -replace '\.disabled$', ''
                     $data    = $p.Value
-                    if ($data -and $data -ne 'null') {
-                        try { Set-ItemProperty -LiteralPath $k -Name $orig -Value $data -ErrorAction Stop } catch {
-                            Write-Log "WARN restore startup $orig : $($_.Exception.Message)"
+                        if ($data -and $data -ne 'null') {
+                            try { Set-ItemProperty -Path $k -Name $orig -Value $data -ErrorAction Stop } catch {
+                                Write-Log "WARN restore startup $orig : $($_.Exception.Message)"
+                            }
                         }
-                    }
-                    try { Remove-ItemProperty -LiteralPath $k -Name $valname -ErrorAction SilentlyContinue } catch { }
+                        try { Remove-ItemProperty -Path $k -Name $valname -ErrorAction SilentlyContinue } catch { }
                 }
                 Write-Log "RESTORED: startup apps"
             }

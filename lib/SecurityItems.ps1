@@ -89,8 +89,8 @@ function Get-RegDword {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Name)
     try {
-        $v = Get-ItemPropertyValue -LiteralPath $Path -Name $Name -ErrorAction Stop
-        return $v
+        $p = Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop
+        return $p.$Name
     } catch { return $null }
 }
 
@@ -101,16 +101,21 @@ function Set-RegDword {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][int]$Value
     )
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -LiteralPath $Path -Force | Out-Null
+    # Use -Path (universally supported; our paths are literal, no wildcards).
+    # Create the value as a DWORD if it doesn't exist, else set it.
+    if (-not (Test-Path -Path $Path)) { New-Item -Path $Path -Force | Out-Null }
+    $exists = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $exists -or $null -eq $exists.$Name) {
+        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
+    } else {
+        Set-ItemProperty -Path $Path -Name $Name -Value $Value -ErrorAction Stop
     }
-    Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Type DWord -ErrorAction Stop
 }
 
 function Remove-RegValue {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Name)
-    try { Remove-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop } catch { }
+    try { Remove-ItemProperty -Path $Path -Name $Name -ErrorAction Stop } catch { }
 }
 
 function Test-ServiceBackupExists { Test-Path -LiteralPath $script:Paths.SecurityBackupFile }
@@ -369,9 +374,9 @@ function Restore-SecurityEntry {
             'lock' {
                 $o = $Row.Value | ConvertFrom-Json -ErrorAction Stop
                 $d = $script:SecurityKeys.ScreenSaver
-                if ($null -ne $o.Active)  { Set-ItemProperty -LiteralPath $d -Name ScreenSaveActive    -Value ([string]$o.Active) -ErrorAction Stop }
-                if ($null -ne $o.Secure)  { Set-ItemProperty -LiteralPath $d -Name ScreenSaverIsSecure -Value ([string]$o.Secure) -ErrorAction Stop }
-                if ($null -ne $o.Timeout) { Set-ItemProperty -LiteralPath $d -Name ScreenSaveTimeOut   -Value ([string]$o.Timeout) -ErrorAction Stop }
+                if ($null -ne $o.Active)  { Set-ItemProperty -Path $d -Name ScreenSaveActive    -Value ([string]$o.Active) -ErrorAction Stop }
+                if ($null -ne $o.Secure)  { Set-ItemProperty -Path $d -Name ScreenSaverIsSecure -Value ([string]$o.Secure) -ErrorAction Stop }
+                if ($null -ne $o.Timeout) { Set-ItemProperty -Path $d -Name ScreenSaveTimeOut   -Value ([string]$o.Timeout) -ErrorAction Stop }
                 Write-Log "RESTORED: auto-lock"
             }
             'browsers' {
