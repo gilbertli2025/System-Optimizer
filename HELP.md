@@ -174,6 +174,26 @@ are **not** part of **Apply ALL** — run them here only when needed.
 
 ---
 
+## Tab 5 - Backup & Restore
+
+Back up your **user settings** to a USB drive so you can recover them on a new
+PC or after a Windows problem.
+
+- **Backup settings to USB** — saves, to a USB (or a folder you choose):
+  - Browser bookmarks (Edge + Chrome)
+  - Wi-Fi profiles (`netsh wlan export`)
+  - User registry settings (`HKCU` as a `.reg` snapshot)
+  - This tool's own profile (your checkbox choices)
+- **Restore from USB** — brings those back from the backup folder.
+- **Pre-flight check** — runs a readiness check before applying changes:
+  admin rights, free disk space, a System Restore point, and a USB drive if
+  BitLocker is selected.
+
+> **Passwords are NOT backed up.** They are encrypted to your specific PC
+> (not portable) and a password file on a USB is a security risk. Use a
+> **password manager** (e.g., Bitwarden/1Password) for your passwords, and your
+> Microsoft account to sync Windows settings.
+
 ## Master buttons (bottom)
 
 - **Apply ALL selected** — applies ticked services, security **AND** cleanup.

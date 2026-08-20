@@ -59,6 +59,11 @@
                     Name="Review.ps1"
                     Source="$(var.SourceDir)\lib\Review.ps1" />
             </Component>
+            <Component Id="LibBackup" Guid="*" Win64="yes">
+              <File Id="LibBackup"
+                    Name="BackupRestore.ps1"
+                    Source="$(var.SourceDir)\lib\BackupRestore.ps1" />
+            </Component>
           </Directory>
         </Directory>
       </Directory>
@@ -90,6 +95,7 @@
       <ComponentRef Id="LibMaint" />
       <ComponentRef Id="LibRepair" />
       <ComponentRef Id="LibReview" />
+      <ComponentRef Id="LibBackup" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
   </Product>

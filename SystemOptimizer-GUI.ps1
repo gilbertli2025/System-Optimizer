@@ -27,6 +27,7 @@ $ScriptRoot = if ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (
 . (Join-Path $ScriptRoot 'lib\MaintenanceItems.ps1')
 . (Join-Path $ScriptRoot 'lib\Repair.ps1')
 . (Join-Path $ScriptRoot 'lib\Review.ps1')
+. (Join-Path $ScriptRoot 'lib\BackupRestore.ps1')
 
 $script:LogFile = $script:Paths.UnifiedLog
 $script:LogSink = $null
@@ -259,6 +260,42 @@ $tabRepair.Controls.Add($lblRepairHint) | Out-Null
 $tabs.TabPages.Add($tabRepair) | Out-Null
 
 # --------------------------------------------------------------------------
+# Tab 5 - Backup & Restore
+# --------------------------------------------------------------------------
+$tabBk = New-Object System.Windows.Forms.TabPage
+$tabBk.Text = 'Backup & Restore'
+$tabBk.Padding = New-Object System.Windows.Forms.Padding(6)
+$tabBk.AutoScroll = $true
+
+$gbBk = New-Object System.Windows.Forms.GroupBox
+$gbBk.Text = 'Back up / restore your user settings (to a USB drive)'
+$gbBk.Location = New-Object System.Drawing.Point(6, 6)
+$gbBk.Size = New-Object System.Drawing.Size(852, 160)
+$lblBk = New-Object System.Windows.Forms.Label
+$lblBk.Text = "Backs up safe, portable items: browser bookmarks, Wi-Fi profiles, user registry settings, and this tool's profile.`nPasswords are NOT backed up (security) - use a password manager for those."
+$lblBk.Location = New-Object System.Drawing.Point(12, 24)
+$lblBk.Size = New-Object System.Drawing.Size(820, 60)
+$lblBk.ForeColor = [System.Drawing.Color]::FromArgb(60,60,60)
+$gbBk.Controls.Add($lblBk) | Out-Null
+
+$btnBackup = New-Object System.Windows.Forms.Button; $btnBackup.Text = 'Backup settings to USB'; $btnBackup.Size = New-Object System.Drawing.Size(180,30); $btnBackup.Location = New-Object System.Drawing.Point(12, 100)
+$btnRestoreBk = New-Object System.Windows.Forms.Button; $btnRestoreBk.Text = 'Restore from USB'; $btnRestoreBk.Size = New-Object System.Drawing.Size(150,30); $btnRestoreBk.Location = New-Object System.Drawing.Point(200, 100)
+$btnPreflight = New-Object System.Windows.Forms.Button; $btnPreflight.Text = 'Pre-flight check'; $btnPreflight.Size = New-Object System.Drawing.Size(130,30); $btnPreflight.Location = New-Object System.Drawing.Point(358, 100)
+$gbBk.Controls.Add($btnBackup) | Out-Null
+$gbBk.Controls.Add($btnRestoreBk) | Out-Null
+$gbBk.Controls.Add($btnPreflight) | Out-Null
+
+$lblBkNote = New-Object System.Windows.Forms.Label
+$lblBkNote.Text = "TIP: plug in a USB drive, then Backup settings to USB. Keep the USB safe. On a new/problem PC, Restore from USB brings back bookmarks, Wi-Fi and settings."
+$lblBkNote.Location = New-Object System.Drawing.Point(8, 178)
+$lblBkNote.Size = New-Object System.Drawing.Size(860, 30)
+$lblBkNote.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
+$tabBk.Controls.Add($gbBk) | Out-Null
+$tabBk.Controls.Add($lblBkNote) | Out-Null
+
+$tabs.TabPages.Add($tabBk) | Out-Null
+
+# --------------------------------------------------------------------------
 # Bottom master controls
 # --------------------------------------------------------------------------
 $btnApplyAll = New-Object System.Windows.Forms.Button; $btnApplyAll.Text = 'Apply ALL selected'; $btnApplyAll.Size = New-Object System.Drawing.Size(150,34); $btnApplyAll.Location = New-Object System.Drawing.Point(10, 442)
@@ -449,9 +486,11 @@ $btnRestoreCheckedSec.add_Click({
 
 $btnApplyAll.add_Click({
     try {
+        # Pre-flight check: admin, disk space, restore point, USB-for-BitLocker
+        $secIds = @($script:secChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        if (-not (Test-PreFlight -SecurityIds $secIds)) { return }
         # Confirm before destructive / risky items even when run via "Apply ALL".
         $maintIds = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-        $secIds   = @($script:secChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
         if ($secIds -contains 'bitlocker' -or $secIds -contains 'officewsh' -or $secIds -contains 'lockout' `
             -or $maintIds -contains 'recyclebin' -or $maintIds -contains 'cleantemp' -or $maintIds -contains 'browscache') {
             if (-not (Show-YesNo 'Apply ALL will also: enable BitLocker, disable Script Host + macros, set account lockout, empty the recycle bin, clear temp + browser caches.`n`nProceed?' 'Confirm' Warn)) { return }
@@ -493,6 +532,12 @@ $btnExplainMaint.add_Click({ Show-ItemExplanations -Items $script:MaintenanceIte
 $btnExport.add_Click({ Export-Settings })
 $btnImport.add_Click({ Import-Settings })
 $btnUndoLast.add_Click({ Undo-LastRun })
+$btnBackup.add_Click({ Backup-UserSettings })
+$btnRestoreBk.add_Click({ Restore-UserSettings })
+$btnPreflight.add_Click({
+    $secIds = @($script:secChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+    Test-PreFlight -SecurityIds $secIds
+})
 
 $btnMaintRun.add_Click({
     $ids = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
