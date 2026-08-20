@@ -372,4 +372,30 @@ function Restore-MaintenanceItems {
     Write-Log "Maintenance restore checked finished ($restored restored, $failed failed)."
 }
 
+# --------------------------------------------------------------------------
+# v1.5: schedule weekly auto-maintenance (safe cleanup + quick scan)
+# --------------------------------------------------------------------------
+function Schedule-AutoMaintenance {
+    $taskName = 'SystemOptimizerWeeklyMaintenance'
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    # Safe weekly maintenance: temp cleanup, DNS flush, SSD trim, quick Defender scan.
+    $cmd = '-NoProfile -ExecutionPolicy Bypass -Command "' +
+          'Remove-Item (Join-Path $env:TEMP ''*'') -Recurse -Force -ErrorAction SilentlyContinue; ' +
+          'Remove-Item (Join-Path $env:WINDIR ''Temp\*'') -Recurse -Force -ErrorAction SilentlyContinue; ' +
+          'ipconfig /flushdns | Out-Null; ' +
+          'Optimize-Volume -DriveLetter C -ReTrim -ErrorAction SilentlyContinue; ' +
+          'Start-MpScan -ScanType QuickScan -ErrorAction SilentlyContinue"'
+    try {
+        $action = New-ScheduledTaskAction -Execute $ps -Argument $cmd -ErrorAction Stop
+        $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 5am -ErrorAction Stop
+        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest -ErrorAction Stop
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force -ErrorAction Stop | Out-Null
+        Write-Log "Scheduled weekly auto-maintenance (Sunday 05:00): temp cleanup, DNS flush, SSD trim, quick scan."
+        Show-Message 'Weekly auto-maintenance scheduled (Sunday 05:00).`n`nIt will: clear temp files, flush DNS, trim the SSD, and run a quick Defender scan.' 'Auto-maintenance' Info
+    } catch {
+        Write-Log "WARN schedule auto-maintenance: $($_.Exception.Message)"
+        Show-Message ("Could not schedule auto-maintenance: " + $_.Exception.Message) 'Error'
+    }
+}
+
 $script:LibMaintLoaded = $true

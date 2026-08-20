@@ -138,20 +138,63 @@ function Backup-UserSettings {
         Write-Log "  Backed up System Optimizer profile."
     } catch { Write-Log "  Profile export failed: $($_.Exception.Message)" }
 
+    # 5) BitLocker recovery key (if the drive is encrypted) - saved with the backup
+    try {
+        $bl = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction SilentlyContinue
+        if ($bl -and $bl.ProtectionStatus -eq 'On') {
+            $rp = $bl.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
+            if ($rp) {
+                $kf = Join-Path $target "BitLocker-Recovery-Key-$env:COMPUTERNAME.txt"
+                Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId $rp.KeyProtectorId -KeyPath $kf -ErrorAction SilentlyContinue | Out-Null
+                Write-Log "  Backed up BitLocker recovery key to the backup folder."
+            }
+        }
+    } catch { Write-Log "  BitLocker key backup skipped: $($_.Exception.Message)" }
+
     Write-Log "Backup complete. Location: $target"
     Show-Message "Settings backed up to:`n$target" 'Backup' Info
     Write-Log "NOTE: passwords are NOT backed up (security). Use a password manager for those."
 }
 
 # --------------------------------------------------------------------------
+# Verify that a backup folder is complete/readable.
+# --------------------------------------------------------------------------
+function Get-ChosenBackupFolder {
+    # Prefer the USB per-PC folder if present; else let the user pick.
+    $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+    if ($removable) {
+        $cand = Join-Path (Join-Path ($removable.DeviceID) 'SystemOptimizer-Backup') $env:COMPUTERNAME
+        if (Test-Path $cand) { return $cand }
+        $cand2 = Join-Path ($removable.DeviceID) 'SystemOptimizer-Backup'
+        if (Test-Path $cand2) { return $cand2 }
+    }
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = 'Choose the backup folder'
+    if ($dlg.ShowDialog() -eq 'OK') { return $dlg.SelectedPath }
+    return $null
+}
+
+function Test-BackupIntegrity {
+    $src = Get-ChosenBackupFolder
+    if (-not $src) { Show-Message 'No backup folder chosen.' 'Verify' Warn; return $false }
+    if (-not (Test-Path $src)) { Show-Message 'Backup folder not found.' 'Verify' Warn; return $false }
+    $files = @(Get-ChildItem $src -File -ErrorAction SilentlyContinue)
+    $wifiCount = @(Get-ChildItem (Join-Path $src 'wifi') -Filter '*.xml' -ErrorAction SilentlyContinue).Count
+    Write-Log "Verifying backup in: $src"
+    foreach ($f in $files) { Write-Log ("  " + $f.Name + "  (" + $f.Length + " bytes)") }
+    Write-Log ("  Wi-Fi profiles: " + $wifiCount)
+    $ok = ($files.Count -gt 0)
+    Show-Message ("Backup verified: " + $files.Count + " file(s) present." + $(if ($wifiCount -gt 0) { "`nWi-Fi profiles: $wifiCount" } else { "" })) 'Verify' Info
+    return $ok
+}
+
+# --------------------------------------------------------------------------
 # Restore user settings from a chosen folder.
 # --------------------------------------------------------------------------
 function Restore-UserSettings {
-    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
-    $dlg.Description = 'Choose the backup folder to restore from'
-    if ($dlg.ShowDialog() -ne 'OK') { return }
-    $src = $dlg.SelectedPath
-    if (-not (Test-Path $src)) { Show-Message 'Folder not found.' 'Restore' Warn; return }
+    $src = Get-ChosenBackupFolder
+    if (-not $src) { return }
+    if (-not (Test-Path $src)) { Show-Message 'Backup folder not found.' 'Restore' Warn; return }
     Write-Log "Restoring user settings from: $src"
 
     $restored = 0

@@ -201,10 +201,12 @@ $btnMaintRun = New-Object System.Windows.Forms.Button; $btnMaintRun.Text = 'Run 
 $btnMaintRestore = New-Object System.Windows.Forms.Button; $btnMaintRestore.Text = 'Restore settings'; $btnMaintRestore.Size = New-Object System.Drawing.Size(140,30); $btnMaintRestore.Location = New-Object System.Drawing.Point(164, 336)
 $btnMaintReport = New-Object System.Windows.Forms.Button; $btnMaintReport.Text = 'Cleanup report'; $btnMaintReport.Size = New-Object System.Drawing.Size(130,30); $btnMaintReport.Location = New-Object System.Drawing.Point(312, 336)
 $btnExplainMaint = New-Object System.Windows.Forms.Button; $btnExplainMaint.Text = 'Explain this'; $btnExplainMaint.Size = New-Object System.Drawing.Size(120,30); $btnExplainMaint.Location = New-Object System.Drawing.Point(450, 336)
+$btnScheduleMaint = New-Object System.Windows.Forms.Button; $btnScheduleMaint.Text = 'Schedule auto-maintenance'; $btnScheduleMaint.Size = New-Object System.Drawing.Size(180,30); $btnScheduleMaint.Location = New-Object System.Drawing.Point(578, 336)
 $tabMaint.Controls.Add($btnMaintRun) | Out-Null
 $tabMaint.Controls.Add($btnMaintRestore) | Out-Null
 $tabMaint.Controls.Add($btnMaintReport) | Out-Null
 $tabMaint.Controls.Add($btnExplainMaint) | Out-Null
+$tabMaint.Controls.Add($btnScheduleMaint) | Out-Null
 
 $lblMaintHint = New-Object System.Windows.Forms.Label
 $lblMaintHint.Text = "TIP: items 1-5 and 11-12 are safe and pre-ticked. Items 6-10 and 13 are optional/off (may delete recoverable files, change visuals/power, or auto-clean restore points). Reversible settings can be undone with 'Restore settings'."
@@ -248,8 +250,7 @@ foreach ($it in $repairItems) {
 $gbRepair.Controls.Add($flowRepair) | Out-Null
 $tabRepair.Controls.Add($gbRepair) | Out-Null
 
-$btnRepairRun = New-Object System.Windows.Forms.Button; $btnRepairRun.Text = 'Run selected repairs'; $btnRepairRun.Size = New-Object System.Drawing.Size(160,30); $btnRepairRun.Location = New-Object System.Drawing.Point(6, 214)
-$tabRepair.Controls.Add($btnRepairRun) | Out-Null
+$btnRepairRun = New-Object System.Windows.Forms.Button; $btnRepairRun.Text = 'Run selected repairs'; $btnRepairRun.Size = New-Object System.Drawing.Size(160,30); $btnRepairRun.Location = New-Object System.Drawing.Point(6, 214)$tabRepair.Controls.Add($btnRepairRun) | Out-Null
 
 $lblRepairHint = New-Object System.Windows.Forms.Label
 $lblRepairHint.Text = "NOTE: repairs can take a long time (sfc 5-10 min, DISM 10-20+ min). chkdsk needs a restart. Repairs are NOT part of 'Apply ALL' - run them here when needed."
@@ -281,9 +282,11 @@ $gbBk.Controls.Add($lblBk) | Out-Null
 $btnBackup = New-Object System.Windows.Forms.Button; $btnBackup.Text = 'Backup settings to USB'; $btnBackup.Size = New-Object System.Drawing.Size(180,30); $btnBackup.Location = New-Object System.Drawing.Point(12, 100)
 $btnRestoreBk = New-Object System.Windows.Forms.Button; $btnRestoreBk.Text = 'Restore from USB'; $btnRestoreBk.Size = New-Object System.Drawing.Size(150,30); $btnRestoreBk.Location = New-Object System.Drawing.Point(200, 100)
 $btnPreflight = New-Object System.Windows.Forms.Button; $btnPreflight.Text = 'Pre-flight check'; $btnPreflight.Size = New-Object System.Drawing.Size(130,30); $btnPreflight.Location = New-Object System.Drawing.Point(358, 100)
+$btnVerifyBk = New-Object System.Windows.Forms.Button; $btnVerifyBk.Text = 'Verify backup'; $btnVerifyBk.Size = New-Object System.Drawing.Size(120,30); $btnVerifyBk.Location = New-Object System.Drawing.Point(496, 100)
 $gbBk.Controls.Add($btnBackup) | Out-Null
 $gbBk.Controls.Add($btnRestoreBk) | Out-Null
 $gbBk.Controls.Add($btnPreflight) | Out-Null
+$gbBk.Controls.Add($btnVerifyBk) | Out-Null
 
 $lblBkNote = New-Object System.Windows.Forms.Label
 $lblBkNote.Text = "TIP: plug in a USB drive, then Backup settings to USB. Keep the USB safe. On a new/problem PC, Restore from USB brings back bookmarks, Wi-Fi and settings."
@@ -545,6 +548,8 @@ $btnPreflight.add_Click({
     $secIds = @($script:secChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
     Test-PreFlight -SecurityIds $secIds
 })
+$btnVerifyBk.add_Click({ Test-BackupIntegrity })
+$btnScheduleMaint.add_Click({ Schedule-AutoMaintenance })
 
 $btnMaintRun.add_Click({
     $ids = @($script:maintChecks | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })

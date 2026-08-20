@@ -61,13 +61,11 @@ Then sign exe + msi with the cert (see AGENTS gotchas on SAC).
 - [x] Undo-last-run (session-based restore).
 - [x] Smarter startup cleanup (safe whitelist).
 
-## v1.5 candidates (agreed 2026-08-19, not started)
-From comparing with CCleaner/Advanced SystemCare/Fortect etc.:
-- Scheduled auto-maintenance (weekly cleanup/scan via Task Scheduler).
-- Duplicate-file finder.
-- Force-uninstaller for stubborn apps.
-- Driver-update checker (report only / caution).
-- (Deliberately NOT doing: registry cleaning - risky/placebo.)
+## v1.5 (in progress 2026-08-20)
+- [x] Scheduled auto-maintenance (weekly Task Scheduler: temp cleanup, DNS, SSD trim, quick scan).
+- [x] Backup improvements: BitLocker recovery key included, Verify backup, auto-detect USB backup folder.
+- [ ] (later) duplicate finder, force uninstaller, driver checker.
+- USB is the recommended way to run + back up settings (launcher prompts if not on USB).
 
 ## Market position (2026-08-19)
 - Competitors (MS PC Manager, CCleaner, BleachBit, Advanced SystemCare, Fortect) are
