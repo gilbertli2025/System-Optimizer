@@ -96,6 +96,20 @@ Windows **Pro/Enterprise** and a **TPM**. Encryption runs in the background.
 **Restore does not decrypt the drive** (for safety); decrypt manually with the
 recovery key if you want it off.
 
+**BitLocker FAQ:**
+- **Already on?** The tool detects it and **skips** — it never touches an
+  already-encrypted drive.
+- **Turns it on?** Only if item 7 is ticked **and** the PC has a TPM + Windows
+  Pro/Enterprise. On Home or no-TPM it just warns and skips (safe).
+- **Does it break Windows on a crash?** No — BitLocker is transparent and
+  crash-safe. The only real risk is being asked for a **Recovery Key** after a
+  BIOS update / TPM reset / hardware change.
+- **Recovery key:** the tool **saves it automatically** to your Documents folder
+  (`BitLocker-Recovery-Key-<PC>.txt`) and reminds you to **move it to a USB or
+  print it** (don't keep it only on this PC), and to save it to your Microsoft
+  account (`aka.ms/myrecoverykey`). Always keep this key safe BEFORE any BIOS
+  update.
+
 ### 8. Disable AutoRun on removable drives
 Sets `NoDriveTypeAutoRun` so USB sticks and other removable drives can never
 auto-start software. Stops a common malware delivery method.
