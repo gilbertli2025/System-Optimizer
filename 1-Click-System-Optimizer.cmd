@@ -17,15 +17,15 @@ if exist "%~dp0WSO-Trust.cer" (
 
 rem --- Check if running from a USB (removable) drive ---
 set DTYPE=
-for /f "tokens=2 delims==" %%a in ('wmic logicaldisk where "DeviceID='%~d0'" get DriveType /value 2^>nul ^| find "="') do set DTYPE=%%a
-if /I "%DTYPE%"=="2" (
+for /f %%a in ('powershell -NoProfile -Command "$d = (Get-Location).Path.Substring(0,2); [System.IO.DriveInfo]::new($d).DriveType"') do set DTYPE=%%a
+if /I "%DTYPE%"=="Removable" (
     echo.
     echo Running from a USB drive - good.
 ) else (
     echo.
-    echo NOTE: Best practice is to run this tool from a USB drive and keep your
-    echo settings backup there. You can continue from here.
-    echo Remember: use the Backup ^& Restore tab to save your settings first.
+    echo Please only run the System-Optimizer from a USB drive.
+    echo This program will back up your user settings to the USB drive
+    echo before running the optimizer.
     echo.
     pause
 )
