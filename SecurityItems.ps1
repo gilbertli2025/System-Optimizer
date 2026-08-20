@@ -255,12 +255,25 @@ function Backup-BitLockerRecoveryKey {
         $v = Get-BitLockerVolume -MountPoint 'C:' -ErrorAction Stop
         $rp = $v.KeyProtector | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
         if (-not $rp) { Write-Log "NOTE: No BitLocker recovery key protector found."; return }
-        $docs = [Environment]::GetFolderPath('MyDocuments')
-        $out = Join-Path $docs ("BitLocker-Recovery-Key-$env:COMPUTERNAME.txt")
-        Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId $rp.KeyProtectorId -KeyPath $out -ErrorAction Stop | Out-Null
-        Write-Log "Recovery key saved to: $out"
-        Write-Log "IMPORTANT: MOVE this file to a USB drive or print it - do NOT keep it only on this PC."
-        Write-Log "Also save it to your Microsoft account: https://aka.ms/myrecoverykey"
+
+        # Prefer a removable (USB) drive so the key is OFF this PC.
+        $target = $null
+        $removable = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |
+            Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+        if ($removable) {
+            $target = Join-Path ($removable.DeviceID) ("BitLocker-Recovery-Key-$env:COMPUTERNAME.txt")
+        }
+        if (-not $target) {
+            $target = Join-Path ([Environment]::GetFolderPath('MyDocuments')) ("BitLocker-Recovery-Key-$env:COMPUTERNAME.txt")
+        }
+
+        Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId $rp.KeyProtectorId -KeyPath $target -ErrorAction Stop | Out-Null
+        Write-Log "Recovery key saved to: $target"
+        if (-not $removable) {
+            Write-Log "WARNING: a key file on the C: drive alone will NOT help if you are locked out (it is on the encrypted drive)."
+        }
+        Write-Log "BEST: save it to your Microsoft account at https://aka.ms/myrecoverykey (works from any PC)."
+        Write-Log "Otherwise, copy this file to a USB drive or print it and keep it somewhere safe."
     } catch {
         Write-Log "WARN: could not back up the BitLocker recovery key: $($_.Exception.Message)"
         Write-Log "Please save it manually: Settings > Privacy & security > Device encryption / Manage BitLocker."
