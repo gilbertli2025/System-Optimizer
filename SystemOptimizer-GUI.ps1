@@ -250,7 +250,8 @@ foreach ($it in $repairItems) {
 $gbRepair.Controls.Add($flowRepair) | Out-Null
 $tabRepair.Controls.Add($gbRepair) | Out-Null
 
-$btnRepairRun = New-Object System.Windows.Forms.Button; $btnRepairRun.Text = 'Run selected repairs'; $btnRepairRun.Size = New-Object System.Drawing.Size(160,30); $btnRepairRun.Location = New-Object System.Drawing.Point(6, 214)$tabRepair.Controls.Add($btnRepairRun) | Out-Null
+$btnRepairRun = New-Object System.Windows.Forms.Button; $btnRepairRun.Text = 'Run selected repairs'; $btnRepairRun.Size = New-Object System.Drawing.Size(160,30); $btnRepairRun.Location = New-Object System.Drawing.Point(6, 214)
+$tabRepair.Controls.Add($btnRepairRun) | Out-Null
 
 $lblRepairHint = New-Object System.Windows.Forms.Label
 $lblRepairHint.Text = "NOTE: repairs can take a long time (sfc 5-10 min, DISM 10-20+ min). chkdsk needs a restart. Repairs are NOT part of 'Apply ALL' - run them here when needed."
