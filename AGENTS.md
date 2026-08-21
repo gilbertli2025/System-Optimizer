@@ -1,4 +1,4 @@
-# Project memory: System Optimizer (v1.3)
+# Project memory: System Optimizer (v1.5)
 
 Auto-loaded by opencode every session. Keep this brief and up to date.
 
@@ -7,23 +7,25 @@ A Windows GUI tool (PowerShell + WinForms) that lets a normal user safely tune
 performance and harden security, with everything reversible.
 
 ## Status
-- Current version: **v1.3.0** (published on GitHub + a v1.3.0 Release).
-- Refactored into modular `lib/`; fixed a JSON-backup bug, a startup-cleanup
-  loop bug, and the MSI build. 9/9 Pester tests pass, PSScriptAnalyzer 0 errors.
-- This folder is both the source and the build output (exe + msi + lib here).
-- GitHub repo: `github.com/gilbertli2025/System-Optimizer` (commit e0f0288).
+- Current version: **v1.5.0** (published on GitHub + a v1.5.0 Release).
+- Refactored into modular `lib/`; 9/9 Pester tests pass, PSScriptAnalyzer 0 errors.
+- This folder is the source + build output (exe + msi + lib here).
+- GitHub repo: `github.com/gilbertli2025/System-Optimizer`; USB deploy at `D:\System-Optimizer`.
+- C-drive workspace = DEV + build. D-drive USB = DELIVERABLES ONLY (no source) for testing on other PCs.
 
 ## Structure
-- `SystemOptimizer-GUI.ps1` = UI shell; it dot-sources `lib/*.ps1`:
+- `SystemOptimizer-GUI.ps1` = UI shell (5 tabs); dot-sources `lib/*.ps1`:
   `Common.ps1` (paths, logging, JSON/CSV), `ServiceCatalog.ps1` (services),
   `SecurityItems.ps1` (10 hardening items), `MaintenanceItems.ps1` (13 items),
-  `Repair.ps1` (sfc/dism/chkdsk), `Review.ps1` (security report).
+  `Repair.ps1` (sfc/dism/chkdsk), `Review.ps1` (security report),
+  `BackupRestore.ps1` (backup/restore user settings + pre-flight).
+- 5 tabs: Performance & Services, Security & Hardening, Maintenance & Cleanup,
+  System Repair, Backup & Restore (blue tab strip for readability).
+- `1-Click-System-Optimizer.cmd` runs `SystemOptimizer-GUI.ps1` via `powershell -Bypass`.
+- `1-Click-System-Restore.cmd` + `SystemOptimizer-Restore.ps1` = one-click restore
+  of user settings from the USB backup.
 - `tests/Lib.Tests.ps1` (Pester). Run: `Invoke-Pester ./tests`.
-- `build.ps1` = full build (exes + MSIs + sign). `source\build-msi.ps1` = MSIs only.
 - Sign cert thumbprint: `C2DD93EC094DEAD52F7C275007B646452A9D79A6`.
-- 4 tabs: Performance & Services, Security & Hardening, Maintenance & Cleanup,
-  System Repair. `1-Click-System-Optimizer.cmd` runs `SystemOptimizer-GUI.ps1`
-  via `powershell -Bypass` (bypasses Smart App Control).
 
 ## Build (quick, one app)
 ```
@@ -44,6 +46,9 @@ Then sign exe + msi with the cert (see AGENTS gotchas on SAC).
 - WiX `.wxs` uses `$(var.Version)` / `$(var.SourceDir)` — pass
   `-dSourceDir` / `-dVersion` to candle or the MSI build fails.
 - `build.ps1` needs `WSO_PS2EXE`, `WSO_WIX`, `WSO_THUMBPRINT` env vars set.
+- **Compiled exe finds lib via the current working directory** (`$PSCommandPath` is empty in ps2exe). Always launch the exe from its own folder (launcher does `cd /d "%~dp0"`), or it fails to load `lib\Common.ps1`. The `.ps1` launcher is immune (uses `$PSCommandPath`).
+- USB detection uses `[IO.DriveInfo]::new($d).DriveType` — **wmic is NOT installed** on modern Windows, so don't use it.
+- A merged-line edit (no newline between two statements) is a silent runtime bug that parses fine — watch for `)$variable` concatenations when editing the GUI.
 - The user is **not a programmer** — plan first, keep the tool safe/reversible
   for normal users, and verify generated code (it can have subtle bugs).
 
@@ -61,11 +66,61 @@ Then sign exe + msi with the cert (see AGENTS gotchas on SAC).
 - [x] Undo-last-run (session-based restore).
 - [x] Smarter startup cleanup (safe whitelist).
 
-## v1.5 (in progress 2026-08-20)
+## v1.5 (2026-08-20)
 - [x] Scheduled auto-maintenance (weekly Task Scheduler: temp cleanup, DNS, SSD trim, quick scan).
 - [x] Backup improvements: BitLocker recovery key included, Verify backup, auto-detect USB backup folder.
+- [x] **Backup-first**: before Apply, creates a System Restore point + offers a USB settings backup.
+- [x] **USB detection** via `[IO.DriveInfo]::new(drive).DriveType == "Removable"` (NOT wmic - not installed on modern Windows).
+- [x] **1-Click-System-Restore** launcher: easy restore of bookmarks/Wi-Fi/settings from USB backup.
+- [x] **1-Click-Restore hardening**: registry import no longer aborts restore (fails gracefully + safe).
+- [x] **Pop-up UX**: all dialogs centered over the app; friendlier text ("click OK to continue, then switch tabs").
+- [x] **Blue tab strip** via OwnerDrawFixed + ItemSize 158px (OwnerDrawNormal does NOT exist on PS 5.1/.NET Framework - only Normal | OwnerDrawFixed).
+- [x] Fixed startup crash: two lines were merged on the Repair tab button (broke `.ps1` run; exe was a stale build).
 - [ ] (later) duplicate finder, force uninstaller, driver checker.
 - USB is the recommended way to run + back up settings (launcher prompts if not on USB).
+
+## USB deliverable layout (D:\System-Optimizer)
+Only runnable files for end users (NO source/build files):
+- `1-Click-System-Optimizer.cmd`, `1-Click-System-Restore.cmd`
+- `SystemOptimizer-GUI.ps1`, `SystemOptimizer-Restore.ps1`, `SystemOptimizer.exe`, `System-Optimizer.msi`
+- `lib\` (all 7 .ps1), `WSO-Trust.cer`, `HELP.md`, `README.md`, `STEPS-for-end-users.txt`, `RESTORE.txt`, `INSTALL.txt`
+- Settings backup goes to `X:\SystemOptimizer-Backup\<COMPUTERNAME>\`.
+
+## v1.6 (built 2026-08-21) - Crash-Proof Backup & Easy Recovery
+**3 top-level tabs** (big blue, OwnerDraw): **Easy** | **Advanced** | **Utilities**. Click a tab to run that part.
+- [x] **Version tab** (`What's new`): shows `v1.6.0`, build date, a changelog per version (`$script:AppVersion`/`$script:AppBuildDate`/`$script:Changelog` in the GUI), plus the USB-safety reminder. Top-right version label is clickable (blue, hand cursor) and jumps to the Version tab.
+- **USB emphasis**: launcher + Version tab both tell the user to run only from the USB and keep it safe (it holds their backup + recovery key).
+- [x] **Easy tab**: health card (free space / last backup / Defender) + big One-Click Optimize (backup settings+folders FIRST -> restore point -> safe recommended items, risky excluded) + Restore wizard (THIS/other PC, tick folders, optional specific-files picker).
+- [x] **Advanced tab**: backup-reminder banner ("Back up now") + 5 sub-tabs (Performance, Security, Maintenance, Repair, Backup & Restore) + master buttons (Apply ALL etc.).
+- [x] **Utilities tab**: duplicate finder (size->hash), disk analyzer, large-file finder (>100MB), programs-list export. All preview + Recycle-Bin safe (Remove-ToRecycleBin). Added "Keep newest" auto-select (keeps 1 per group) + "Open file folder" (double-click a result to jump to it in Explorer).
+- [x] Removed all `continue`/`break` from FolderBackup.ps1 + Utilities.ps1 (Pester 6.1 bug #2669 mis-flag).
+- [x] **Per-run log on USB** (`<USB>\logs\run-<PC>-<timestamp>.log`): every run writes its log to the USB (Write-Log also mirrors to `$script:RunLog`); keeps the newest **7** run logs (rotation before create, keeps 6 old + current). Helps troubleshooting. Not created when not on a removable drive.
+- NOTE (Pester quirk): Pester 6.1 fails a multi-`It` test file in this workspace with "break/continue escaped" (bug #2669) even though each `It` passes on its own; it's a Pester env quirk, NOT an app bug. Tests live in `tests\Lib.Tests.ps1` (Common.ps1 only).
+- NOTE (workspace cleanup): at some point the workspace lost `tests\Lib.Tests.ps1`, `WSO-Trust.cer`, `README.md`, `STEPS-for-end-users.txt`, `INSTALL.txt`, and lib `Repair.ps1`/`Review.ps1`/`ServiceCatalog.ps1`. Restored docs+lib from the USB; recreated the test file.
+- [x] **User-folder backup** via robocopy (`lib\FolderBackup.ps1`): Documents/Pictures/Music/Videos/Downloads/Desktop -> `X:\SystemOptimizer-Backup\<PC>\files\...`, per-PC, incremental.
+- [x] **Restore-UserSettings** now takes `-Source` (restore from a chosen backup folder).
+- [x] Installed-programs list export (winget/registry -> InstalledPrograms.txt on USB).
+- [x] Top tabs: native Windows-theme, auto-size (Segoe UI 11 bold). Sub-tabs: native, auto-size (Segoe UI 10 bold). NOTE: OwnerDraw blue tabs caused DPI scaling / proportion problems on some displays - reverted to NATIVE themed tabs for reliable proportion.
+- USB-only (no cloud/2nd copy). Deliberately no registry cleaner/driver updater/boost (safety).
+
+## Competitive comparison + add-on feasibility (researched 2026-08-20)
+- Our edge vs System Mechanic / Glary / CCleaner / Advanced SystemCare / MS PC Manager:
+  safe + reversible (undo/restore/restore point), portable USB, security hardening (10 items),
+  no ads. They are aggressive cleaners; we are NOT (see stance below).
+- Easy to add in our `lib\*.ps1`+GUI stack (proven by existing PowerShell tools): large-file finder,
+  disk-space analyzer, duplicate-file finder (size->hash, Recycle-Bin safe), startup manager,
+  programs-list export.
+- Medium: uninstaller (winget/msiexec), driver-store cleanup (pnputil, previewed).
+- Deliberately NOT (risky, matches MS PC Manager): registry cleaner, auto driver updater,
+  RAM/process "boost", antivirus.
+- Recommendation for later: duplicate finder, large-file finder, disk analyzer, programs-list export.
+
+## v1.6 UI design (finalized 2026-08-20)
+- **Two modes** in one window, top toggle: Easy (default on launch) | Advanced.
+- **Easy**: health card + big One-Click Optimize (backup settings+folders FIRST -> restore point -> safe recommended items only) + Restore wizard (THIS PC / ANOTHER PC; tick folders; per-folder [Choose files...] to restore only selected files/sub-folders).
+- **Advanced**: existing 5 tabs + top backup-reminder banner + new Utilities tab.
+- **Utilities tab (4, preview-first + Recycle-Bin safe)**: duplicate finder, disk analyzer, large-file finder, programs-list export (saves InstalledPrograms.txt to USB).
+- Easy mode never applies risky items (BitLocker/Office-macros/lockout); those stay in Advanced with confirm.
 
 ## Market position (2026-08-19)
 - Competitors (MS PC Manager, CCleaner, BleachBit, Advanced SystemCare, Fortect) are
@@ -95,6 +150,7 @@ Then sign exe + msi with the cert (see AGENTS gotchas on SAC).
 
 ## User context (for future sessions)
 - The user is **not a programmer**; wants the tool safe/reversible for normal users.
+- **Language preference (2026-08-21): keep Chinese (zh-Hant-HK) in the Windows language list (for talking with the assistant in Chinese and future Chinese voice/input), BUT keep all development and the app output in English only.** Do NOT switch the PC display language; do NOT localize the app. If the user messages in Chinese, reply in Chinese; keep code/docs/UI English.
 - Dev PC (this one) can run the tool safely with recommended defaults; for a dev
   machine, prefer to skip "disable Script Host/macros" and "account lockout".
 - The user likes the read-image skill (OCR) and the AGENTS.md memory mechanism.

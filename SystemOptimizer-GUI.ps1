@@ -28,8 +28,29 @@ $ScriptRoot = if ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (
 . (Join-Path $ScriptRoot 'lib\Repair.ps1')
 . (Join-Path $ScriptRoot 'lib\Review.ps1')
 . (Join-Path $ScriptRoot 'lib\BackupRestore.ps1')
+. (Join-Path $ScriptRoot 'lib\FolderBackup.ps1')
+. (Join-Path $ScriptRoot 'lib\Utilities.ps1')
 
 $script:LogFile = $script:Paths.UnifiedLog
+
+# Per-run log on the USB drive (kept to the last 7 runs). Helps troubleshooting.
+$script:RunLog = $null
+try {
+    $rootDrive = $ScriptRoot.Substring(0, 2)
+    if ([System.IO.DriveInfo]::new($rootDrive).DriveType -eq 'Removable') {
+        $logDir = Join-Path $ScriptRoot 'logs'
+        try { if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null } } catch {}
+        # Rotate BEFORE creating this run's log: keep the newest 6 old ones
+        # (so with this run we keep 7 in total). Never deletes this run's log.
+        try {
+            $old = @(Get-ChildItem $logDir -Filter 'run-*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+            if ($old.Count -gt 6) { $old | Select-Object -Skip 6 | Remove-Item -Force -ErrorAction SilentlyContinue }
+        } catch {}
+        $runLog = Join-Path $logDir ("run-$env:COMPUTERNAME-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".log")
+        $script:RunLog = $runLog
+        Write-Log "Per-run log: $runLog"
+    }
+} catch { $script:RunLog = $null }
 $script:LogSink = $null
 
 if (-not (Test-Admin) -and -not $NoElevate) {
@@ -44,16 +65,160 @@ if (-not (Test-Admin) -and -not $NoElevate) {
 # --------------------------------------------------------------------------
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'System Optimizer - Performance + Security'
-$form.ClientSize = New-Object System.Drawing.Size(900, 660)
+$form.ClientSize = New-Object System.Drawing.Size(900, 700)
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
 $form.MaximizeBox = $false
 $form.StartPosition = 'CenterScreen'
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
+# --------------------------------------------------------------------------
+# V1.6 Mode toggle (Easy / Advanced) + Easy panel + backup-reminder banner
+# --------------------------------------------------------------------------
+# --- V1.6: 3 top-level tabs: Easy | Advanced | Utilities ---
+$script:mainTabs = New-Object System.Windows.Forms.TabControl
+$script:mainTabs.Location = New-Object System.Drawing.Point(10, 10)
+$script:mainTabs.Size = New-Object System.Drawing.Size(880, 580)
+$form.Controls.Add($script:mainTabs) | Out-Null
+
+$pageEasy = New-Object System.Windows.Forms.TabPage
+$pageEasy.Text = 'Easy'
+$pageEasy.Padding = New-Object System.Windows.Forms.Padding(8)
+$script:mainTabs.TabPages.Add($pageEasy) | Out-Null
+
+$pageAdv = New-Object System.Windows.Forms.TabPage
+$pageAdv.Text = 'Advanced'
+$pageAdv.Padding = New-Object System.Windows.Forms.Padding(6)
+$script:mainTabs.TabPages.Add($pageAdv) | Out-Null
+
+# --- Version / What's New tab ---
+$script:AppVersion = '1.6.0'
+$script:AppBuildDate = '2026-08-21'
+$script:Changelog = @(
+    @{ V='v1.6.0'; D='2026-08-21'; N=@(
+        '3 tabs: Easy, Advanced, Utilities',
+        'Back up your personal folders (Documents, Pictures, Music, Videos, Downloads, Desktop) to this USB',
+        'Utilities: duplicate finder, disk analyzer, large-file finder, programs list',
+        'Keep-newest dedupe, and open a file/folder with one click',
+        'Per-run log saved on this USB (keeps the last 7 runs)',
+        'Safer by design: BitLocker, Office macros and account lockout are Advanced mode only' ) },
+    @{ V='v1.5.0'; D='2026-08-20'; N=@(
+        'Backup & Restore, one-click restore, USB detection',
+        'Scheduled auto-maintenance, backup-first safety' ) },
+    @{ V='v1.4.0'; D='2026-08-19'; N=@(
+        'Diagnostics, explain mode, undo-last run, export/import settings' ) }
+)
+$pageVer = New-Object System.Windows.Forms.TabPage
+$pageVer.Text = 'Version'
+$pageVer.Padding = New-Object System.Windows.Forms.Padding(8)
+$script:mainTabs.TabPages.Add($pageVer) | Out-Null
+
+$lblVerTitle = New-Object System.Windows.Forms.Label
+$lblVerTitle.Text = "System Optimizer   v$($script:AppVersion)   (built $($script:AppBuildDate))"
+$lblVerTitle.AutoSize = $true; $lblVerTitle.Location = New-Object System.Drawing.Point(8, 8)
+$lblVerTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+$pageVer.Controls.Add($lblVerTitle) | Out-Null
+
+$lblVerWhat = New-Object System.Windows.Forms.Label
+$lblVerWhat.Text = "What's new in this version:"
+$lblVerWhat.AutoSize = $true; $lblVerWhat.Location = New-Object System.Drawing.Point(8, 50)
+$lblVerWhat.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$pageVer.Controls.Add($lblVerWhat) | Out-Null
+
+$txtChangelog = New-Object System.Windows.Forms.TextBox
+$txtChangelog.Multiline = $true; $txtChangelog.ReadOnly = $true; $txtChangelog.ScrollBars = 'Vertical'
+$txtChangelog.BackColor = [System.Drawing.Color]::White
+$txtChangelog.Location = New-Object System.Drawing.Point(8, 76); $txtChangelog.Size = New-Object System.Drawing.Size(860, 360)
+$txtChangelog.Font = New-Object System.Drawing.Font('Consolas', 9)
+$clLines = New-Object System.Collections.Generic.List[string]
+foreach ($v in $script:Changelog) {
+    $clLines.Add('')
+    $clLines.Add("=== $($v.V)  ($($v.D)) ===")
+    foreach ($n in $v.N) { $clLines.Add("  - $n") }
+}
+$txtChangelog.Text = ($clLines -join [Environment]::NewLine)
+$pageVer.Controls.Add($txtChangelog) | Out-Null
+
+$lblVerSafe = New-Object System.Windows.Forms.Label
+$lblVerSafe.Text = "IMPORTANT: Always run this program from the USB drive, and keep the USB drive safe.`nIt holds your settings backup and your recovery key - do not use this USB for anything else."
+$lblVerSafe.Location = New-Object System.Drawing.Point(8, 446); $lblVerSafe.Size = New-Object System.Drawing.Size(860, 60)
+$lblVerSafe.ForeColor = [System.Drawing.Color]::FromArgb(180, 60, 0)
+$lblVerSafe.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$pageVer.Controls.Add($lblVerSafe) | Out-Null
+
+# Native, proportionate tabs (Windows-themed) - they auto-size to the text
+$script:mainTabs.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
+foreach ($tp in $script:mainTabs.TabPages) { $tp.BackColor = [System.Drawing.Color]::White }
+
+$lblVersion = New-Object System.Windows.Forms.Label
+$lblVersion.Text = "v$($script:AppVersion)"; $lblVersion.AutoSize = $true; $lblVersion.Location = New-Object System.Drawing.Point(830, 12)
+$lblVersion.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204)
+$lblVersion.Cursor = [System.Windows.Forms.Cursors]::Hand
+$form.Controls.Add($lblVersion) | Out-Null
+
+# Backup-reminder banner (shown in Advanced mode)
+$script:lblBackupNote = New-Object System.Windows.Forms.Label
+$script:lblBackupNote.Text = 'TIP: Back up your settings & files first (recommended before making changes).'
+$script:lblBackupNote.Location = New-Object System.Drawing.Point(6, 8); $script:lblBackupNote.Size = New-Object System.Drawing.Size(700, 20)
+$script:lblBackupNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
+$pageAdv.Controls.Add($script:lblBackupNote) | Out-Null
+$script:btnBannerBackup = New-Object System.Windows.Forms.Button
+$script:btnBannerBackup.Text = 'Back up now'; $script:btnBannerBackup.Size = New-Object System.Drawing.Size(120, 26); $script:btnBannerBackup.Location = New-Object System.Drawing.Point(742, 4)
+$pageAdv.Controls.Add($script:btnBannerBackup) | Out-Null
+
+# Easy-mode panel (inside the Easy top-level tab)
+$script:easyPanel = New-Object System.Windows.Forms.Panel
+$script:easyPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+$pageEasy.Controls.Add($script:easyPanel) | Out-Null
+
+$lblEasyTitle = New-Object System.Windows.Forms.Label
+$lblEasyTitle.Text = 'EASY MODE - we will take care of it'
+$lblEasyTitle.AutoSize = $true; $lblEasyTitle.Location = New-Object System.Drawing.Point(0, 0)
+$lblEasyTitle.Font = New-Object System.Drawing.Font('Segoe UI', 13, [System.Drawing.FontStyle]::Bold)
+$script:easyPanel.Controls.Add($lblEasyTitle) | Out-Null
+
+# Health card
+$gbHealth = New-Object System.Windows.Forms.GroupBox
+$gbHealth.Text = 'Your PC health'; $gbHealth.Location = New-Object System.Drawing.Point(0, 36); $gbHealth.Size = New-Object System.Drawing.Size(430, 130)
+$script:easyPanel.Controls.Add($gbHealth) | Out-Null
+$script:lblHealthFree = New-Object System.Windows.Forms.Label
+$script:lblHealthFree.Text = 'C: free space: ...'; $script:lblHealthFree.AutoSize = $true; $script:lblHealthFree.Location = New-Object System.Drawing.Point(12, 24)
+$gbHealth.Controls.Add($script:lblHealthFree) | Out-Null
+$script:lblHealthBackup = New-Object System.Windows.Forms.Label
+$script:lblHealthBackup.Text = 'Last backup: none yet'; $script:lblHealthBackup.AutoSize = $true; $script:lblHealthBackup.Location = New-Object System.Drawing.Point(12, 52)
+$gbHealth.Controls.Add($script:lblHealthBackup) | Out-Null
+$script:lblHealthDefender = New-Object System.Windows.Forms.Label
+$script:lblHealthDefender.Text = 'Windows Defender: ...'; $script:lblHealthDefender.AutoSize = $true; $script:lblHealthDefender.Location = New-Object System.Drawing.Point(12, 80)
+$gbHealth.Controls.Add($script:lblHealthDefender) | Out-Null
+$btnRefreshHealth = New-Object System.Windows.Forms.Button
+$btnRefreshHealth.Text = 'Refresh'; $btnRefreshHealth.Size = New-Object System.Drawing.Size(80, 26); $btnRefreshHealth.Location = New-Object System.Drawing.Point(330, 96)
+$gbHealth.Controls.Add($btnRefreshHealth) | Out-Null
+
+# Big One-Click Optimize button
+$script:btnEasyOptimize = New-Object System.Windows.Forms.Button
+$script:btnEasyOptimize.Text = "ONE-CLICK`nOPTIMIZE"
+$script:btnEasyOptimize.Size = New-Object System.Drawing.Size(200, 130); $script:btnEasyOptimize.Location = New-Object System.Drawing.Point(460, 36)
+$script:btnEasyOptimize.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204)
+$script:btnEasyOptimize.ForeColor = [System.Drawing.Color]::White
+$script:btnEasyOptimize.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
+$script:easyPanel.Controls.Add($script:btnEasyOptimize) | Out-Null
+
+# Description
+$lblEasyDesc = New-Object System.Windows.Forms.Label
+$lblEasyDesc.Text = "What it does, in plain words:`n`n  - Backs up your settings & files to this USB first`n  - Creates a restore point (so you can undo)`n  - Disables safe background services (telemetry, Xbox, Fax, etc.)`n  - Turns on recommended security (Defender, firewall, screen lock)`n  - Does safe cleanup`n`nIt only uses safe, recommended items. It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only. Nothing here can harm your PC or lock you out."
+$lblEasyDesc.Location = New-Object System.Drawing.Point(0, 190); $lblEasyDesc.Size = New-Object System.Drawing.Size(880, 120)
+$lblEasyDesc.ForeColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+$script:easyPanel.Controls.Add($lblEasyDesc) | Out-Null
+
+# Restore button
+$script:btnEasyRestore = New-Object System.Windows.Forms.Button
+$script:btnEasyRestore.Text = 'Restore my files & settings'
+$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 320)
+$script:easyPanel.Controls.Add($script:btnEasyRestore) | Out-Null
+
 $tabs = New-Object System.Windows.Forms.TabControl
-$tabs.Location = New-Object System.Drawing.Point(10, 10)
-$tabs.Size = New-Object System.Drawing.Size(880, 420)
-$form.Controls.Add($tabs) | Out-Null
+$tabs.Location = New-Object System.Drawing.Point(6, 32)
+$tabs.Size = New-Object System.Drawing.Size(868, 460)
+$pageAdv.Controls.Add($tabs) | Out-Null
 
 # --------------------------------------------------------------------------
 # Tab 1 - Performance & Services
@@ -107,10 +272,10 @@ foreach ($n in $script:ServiceGroups.Optional) {
 $tabPerf.Controls.Add($gbSafe) | Out-Null
 $tabPerf.Controls.Add($gbOpt) | Out-Null
 
-$btnDisable = New-Object System.Windows.Forms.Button; $btnDisable.Text = 'Disable services (selected)'; $btnDisable.Size = New-Object System.Drawing.Size(160,30); $btnDisable.Location = New-Object System.Drawing.Point(6, 336)
-$btnRestoreSvc = New-Object System.Windows.Forms.Button; $btnRestoreSvc.Text = 'Restore services'; $btnRestoreSvc.Size = New-Object System.Drawing.Size(130,30); $btnRestoreSvc.Location = New-Object System.Drawing.Point(174, 336)
-$btnVerifySvc = New-Object System.Windows.Forms.Button; $btnVerifySvc.Text = 'Verify services'; $btnVerifySvc.Size = New-Object System.Drawing.Size(130,30); $btnVerifySvc.Location = New-Object System.Drawing.Point(312, 336)
-$btnRestoreOpt = New-Object System.Windows.Forms.Button; $btnRestoreOpt.Text = 'Restore optional only'; $btnRestoreOpt.Size = New-Object System.Drawing.Size(150,30); $btnRestoreOpt.Location = New-Object System.Drawing.Point(450, 336)
+$btnDisable = New-Object System.Windows.Forms.Button; $btnDisable.Text = 'Disable services (selected)'; $btnDisable.Size = New-Object System.Drawing.Size(175,30); $btnDisable.Location = New-Object System.Drawing.Point(6, 336)
+$btnRestoreSvc = New-Object System.Windows.Forms.Button; $btnRestoreSvc.Text = 'Restore services'; $btnRestoreSvc.Size = New-Object System.Drawing.Size(130,30); $btnRestoreSvc.Location = New-Object System.Drawing.Point(186, 336)
+$btnVerifySvc = New-Object System.Windows.Forms.Button; $btnVerifySvc.Text = 'Verify services'; $btnVerifySvc.Size = New-Object System.Drawing.Size(130,30); $btnVerifySvc.Location = New-Object System.Drawing.Point(322, 336)
+$btnRestoreOpt = New-Object System.Windows.Forms.Button; $btnRestoreOpt.Text = 'Restore optional only'; $btnRestoreOpt.Size = New-Object System.Drawing.Size(170,30); $btnRestoreOpt.Location = New-Object System.Drawing.Point(458, 336)
 $tabPerf.Controls.Add($btnDisable) | Out-Null
 $tabPerf.Controls.Add($btnRestoreSvc) | Out-Null
 $tabPerf.Controls.Add($btnVerifySvc) | Out-Null
@@ -290,7 +455,7 @@ $gbBk.Controls.Add($btnPreflight) | Out-Null
 $gbBk.Controls.Add($btnVerifyBk) | Out-Null
 
 $lblBkNote = New-Object System.Windows.Forms.Label
-$lblBkNote.Text = "TIP: plug in a USB drive, then Backup settings to USB. Keep the USB safe. On a new/problem PC, Restore from USB brings back bookmarks, Wi-Fi and settings."
+$lblBkNote.Text = "TIP: plug in a USB drive, then Backup settings to USB. Keep the USB safe. On a new/problem PC, Restore from USB brings back bookmarks, Wi-Fi and settings.`nEach button shows a small pop-up to confirm - click OK on it, then you can switch to any tab."
 $lblBkNote.Location = New-Object System.Drawing.Point(8, 178)
 $lblBkNote.Size = New-Object System.Drawing.Size(860, 30)
 $lblBkNote.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
@@ -300,31 +465,75 @@ $tabBk.Controls.Add($lblBkNote) | Out-Null
 $tabs.TabPages.Add($tabBk) | Out-Null
 
 # --------------------------------------------------------------------------
+# Tab 6 - Utilities (hard-drive health & space tools, safe)
+# --------------------------------------------------------------------------
+$tabUtil = New-Object System.Windows.Forms.TabPage
+$tabUtil.Text = 'Utilities'
+$tabUtil.Padding = New-Object System.Windows.Forms.Padding(6)
+$tabUtil.AutoScroll = $true
+
+$gbUtil = New-Object System.Windows.Forms.GroupBox
+$gbUtil.Text = 'Hard-drive health & space tools (all safe - deletes go to the Recycle Bin)'
+$gbUtil.Location = New-Object System.Drawing.Point(6, 6); $gbUtil.Size = New-Object System.Drawing.Size(850, 120)
+
+$btnUtilDup   = New-Object System.Windows.Forms.Button; $btnUtilDup.Text   = 'Duplicate finder';   $btnUtilDup.Size   = New-Object System.Drawing.Size(130,32); $btnUtilDup.Location   = New-Object System.Drawing.Point(12, 24)
+$btnUtilDisk  = New-Object System.Windows.Forms.Button; $btnUtilDisk.Text  = 'Disk analyzer';      $btnUtilDisk.Size  = New-Object System.Drawing.Size(120,32); $btnUtilDisk.Location  = New-Object System.Drawing.Point(150, 24)
+$btnUtilLarge = New-Object System.Windows.Forms.Button; $btnUtilLarge.Text = 'Large-file finder';  $btnUtilLarge.Size = New-Object System.Drawing.Size(130,32); $btnUtilLarge.Location = New-Object System.Drawing.Point(278, 24)
+$btnUtilProg  = New-Object System.Windows.Forms.Button; $btnUtilProg.Text  = 'Export programs list'; $btnUtilProg.Size = New-Object System.Drawing.Size(195,32); $btnUtilProg.Location = New-Object System.Drawing.Point(416, 24)
+
+$lblUtilPath = New-Object System.Windows.Forms.Label; $lblUtilPath.Text = 'Folder/drive to scan:'; $lblUtilPath.AutoSize = $true; $lblUtilPath.Location = New-Object System.Drawing.Point(12, 66)
+$script:txtUtilPath = New-Object System.Windows.Forms.TextBox; $script:txtUtilPath.Text = $env:USERPROFILE; $script:txtUtilPath.Size = New-Object System.Drawing.Size(400,22); $script:txtUtilPath.Location = New-Object System.Drawing.Point(140, 64)
+$btnUtilBrowse = New-Object System.Windows.Forms.Button; $btnUtilBrowse.Text = 'Browse...'; $btnUtilBrowse.Size = New-Object System.Drawing.Size(80,26); $btnUtilBrowse.Location = New-Object System.Drawing.Point(548, 62)
+
+$gbUtil.Controls.Add($btnUtilDup) | Out-Null; $gbUtil.Controls.Add($btnUtilDisk) | Out-Null; $gbUtil.Controls.Add($btnUtilLarge) | Out-Null; $gbUtil.Controls.Add($btnUtilProg) | Out-Null
+$gbUtil.Controls.Add($lblUtilPath) | Out-Null; $gbUtil.Controls.Add($script:txtUtilPath) | Out-Null; $gbUtil.Controls.Add($btnUtilBrowse) | Out-Null
+
+$script:dgUtil = New-Object System.Windows.Forms.DataGridView
+$script:dgUtil.Location = New-Object System.Drawing.Point(6, 132); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
+$script:dgUtil.AllowUserToAddRows = $false; $script:dgUtil.ReadOnly = $true; $script:dgUtil.SelectionMode = 'FullRowSelect'; $script:dgUtil.AutoSizeColumnsMode = 'Fill'; $script:dgUtil.BackgroundColor = [System.Drawing.Color]::White
+
+$btnUtilKeepNewest = New-Object System.Windows.Forms.Button; $btnUtilKeepNewest.Text = 'Keep newest (auto-select older copies)'; $btnUtilKeepNewest.Size = New-Object System.Drawing.Size(222,32); $btnUtilKeepNewest.Location = New-Object System.Drawing.Point(6, 358)
+$btnUtilDelete = New-Object System.Windows.Forms.Button; $btnUtilDelete.Text = 'Send selected to Recycle Bin'; $btnUtilDelete.Size = New-Object System.Drawing.Size(228,32); $btnUtilDelete.Location = New-Object System.Drawing.Point(234, 358)
+$btnUtilDelete.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $btnUtilDelete.ForeColor = [System.Drawing.Color]::White
+$btnUtilOpen = New-Object System.Windows.Forms.Button; $btnUtilOpen.Text = 'Open file folder'; $btnUtilOpen.Size = New-Object System.Drawing.Size(150,30); $btnUtilOpen.Location = New-Object System.Drawing.Point(6, 396)
+$lblUtilHint = New-Object System.Windows.Forms.Label
+$lblUtilHint.Text = "To remove duplicates safely: 1) click 'Keep newest' to auto-select the older copies (it keeps the newest of each group), 2) click 'Send selected to Recycle Bin'. Everything is Recycle-Bin safe - nothing is lost and you can undo it. Tip: double-click any file (or use 'Open file folder') to jump to its folder. Make sure the scanned folder is your own data (e.g. Documents / Pictures), not a system folder."
+$lblUtilHint.Location = New-Object System.Drawing.Point(6, 434); $lblUtilHint.Size = New-Object System.Drawing.Size(850, 90); $lblUtilHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
+$tabUtil.Controls.Add($gbUtil) | Out-Null; $tabUtil.Controls.Add($script:dgUtil) | Out-Null; $tabUtil.Controls.Add($btnUtilKeepNewest) | Out-Null; $tabUtil.Controls.Add($btnUtilDelete) | Out-Null; $tabUtil.Controls.Add($btnUtilOpen) | Out-Null; $tabUtil.Controls.Add($lblUtilHint) | Out-Null
+$script:dupMeta = @()
+$script:mainTabs.TabPages.Add($tabUtil) | Out-Null
+$script:utilMode = ''
+
+# Blue tab strip + light page background so the tabs are easy to read.
+foreach ($tp in $tabs.TabPages) { $tp.BackColor = [System.Drawing.Color]::White }
+$tabs.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+
+# --------------------------------------------------------------------------
 # Bottom master controls
 # --------------------------------------------------------------------------
-$btnApplyAll = New-Object System.Windows.Forms.Button; $btnApplyAll.Text = 'Apply ALL selected'; $btnApplyAll.Size = New-Object System.Drawing.Size(150,34); $btnApplyAll.Location = New-Object System.Drawing.Point(10, 442)
-$btnRestoreAll = New-Object System.Windows.Forms.Button; $btnRestoreAll.Text = 'Restore ALL'; $btnRestoreAll.Size = New-Object System.Drawing.Size(120,34); $btnRestoreAll.Location = New-Object System.Drawing.Point(168, 442)
-$btnReviewAll = New-Object System.Windows.Forms.Button; $btnReviewAll.Text = 'Full review'; $btnReviewAll.Size = New-Object System.Drawing.Size(120,34); $btnReviewAll.Location = New-Object System.Drawing.Point(296, 442)
-$btnHelp = New-Object System.Windows.Forms.Button; $btnHelp.Text = 'Help'; $btnHelp.Size = New-Object System.Drawing.Size(80,34); $btnHelp.Location = New-Object System.Drawing.Point(424, 442)
-$btnExport = New-Object System.Windows.Forms.Button; $btnExport.Text = 'Export'; $btnExport.Size = New-Object System.Drawing.Size(80,34); $btnExport.Location = New-Object System.Drawing.Point(512, 442)
-$btnImport = New-Object System.Windows.Forms.Button; $btnImport.Text = 'Import'; $btnImport.Size = New-Object System.Drawing.Size(80,34); $btnImport.Location = New-Object System.Drawing.Point(600, 442)
-$btnUndoLast = New-Object System.Windows.Forms.Button; $btnUndoLast.Text = 'Undo last'; $btnUndoLast.Size = New-Object System.Drawing.Size(90,34); $btnUndoLast.Location = New-Object System.Drawing.Point(690, 442)
-$form.Controls.Add($btnApplyAll) | Out-Null
-$form.Controls.Add($btnRestoreAll) | Out-Null
-$form.Controls.Add($btnReviewAll) | Out-Null
-$form.Controls.Add($btnHelp) | Out-Null
-$form.Controls.Add($btnExport) | Out-Null
-$form.Controls.Add($btnImport) | Out-Null
-$form.Controls.Add($btnUndoLast) | Out-Null
+$btnApplyAll = New-Object System.Windows.Forms.Button; $btnApplyAll.Text = 'Apply ALL selected'; $btnApplyAll.Size = New-Object System.Drawing.Size(150,34); $btnApplyAll.Location = New-Object System.Drawing.Point(10, 500)
+$btnRestoreAll = New-Object System.Windows.Forms.Button; $btnRestoreAll.Text = 'Restore ALL'; $btnRestoreAll.Size = New-Object System.Drawing.Size(120,34); $btnRestoreAll.Location = New-Object System.Drawing.Point(168, 500)
+$btnReviewAll = New-Object System.Windows.Forms.Button; $btnReviewAll.Text = 'Full review'; $btnReviewAll.Size = New-Object System.Drawing.Size(120,34); $btnReviewAll.Location = New-Object System.Drawing.Point(296, 500)
+$btnHelp = New-Object System.Windows.Forms.Button; $btnHelp.Text = 'Help'; $btnHelp.Size = New-Object System.Drawing.Size(80,34); $btnHelp.Location = New-Object System.Drawing.Point(424, 500)
+$btnExport = New-Object System.Windows.Forms.Button; $btnExport.Text = 'Export'; $btnExport.Size = New-Object System.Drawing.Size(80,34); $btnExport.Location = New-Object System.Drawing.Point(512, 500)
+$btnImport = New-Object System.Windows.Forms.Button; $btnImport.Text = 'Import'; $btnImport.Size = New-Object System.Drawing.Size(80,34); $btnImport.Location = New-Object System.Drawing.Point(600, 500)
+$btnUndoLast = New-Object System.Windows.Forms.Button; $btnUndoLast.Text = 'Undo last'; $btnUndoLast.Size = New-Object System.Drawing.Size(90,34); $btnUndoLast.Location = New-Object System.Drawing.Point(690, 500)
+$pageAdv.Controls.Add($btnApplyAll) | Out-Null
+$pageAdv.Controls.Add($btnRestoreAll) | Out-Null
+$pageAdv.Controls.Add($btnReviewAll) | Out-Null
+$pageAdv.Controls.Add($btnHelp) | Out-Null
+$pageAdv.Controls.Add($btnExport) | Out-Null
+$pageAdv.Controls.Add($btnImport) | Out-Null
+$pageAdv.Controls.Add($btnUndoLast) | Out-Null
 
-$lblLog = New-Object System.Windows.Forms.Label; $lblLog.Text = 'Log:'; $lblLog.Location = New-Object System.Drawing.Point(10, 486)
+$lblLog = New-Object System.Windows.Forms.Label; $lblLog.Text = 'Log:'; $lblLog.Location = New-Object System.Drawing.Point(10, 596)
 $form.Controls.Add($lblLog) | Out-Null
 
 $script:logBox = New-Object System.Windows.Forms.TextBox
 $script:logBox.Multiline = $true; $script:logBox.ReadOnly = $true; $script:logBox.ScrollBars = 'Vertical'
 $script:logBox.BackColor = [System.Drawing.Color]::FromArgb(32,32,32); $script:logBox.ForeColor = [System.Drawing.Color]::White
 $script:logBox.Font = New-Object System.Drawing.Font('Consolas', 9)
-$script:logBox.Location = New-Object System.Drawing.Point(10, 506); $script:logBox.Size = New-Object System.Drawing.Size(880, 142)
+$script:logBox.Location = New-Object System.Drawing.Point(10, 616); $script:logBox.Size = New-Object System.Drawing.Size(880, 76)
 $form.Controls.Add($script:logBox) | Out-Null
 
 # Wire the sink AFTER the TextBox exists.
@@ -657,5 +866,283 @@ if ($SmokeTest) {
     $script:smokeTimer = New-Object System.Threading.Timer($cb, $null, 3000, -1)
 }
 
+# --------------------------------------------------------------------------
+# V1.6 Easy/Advanced handlers
+# --------------------------------------------------------------------------
+function Update-EasyHealth {
+    try { $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"; $script:lblHealthFree.Text = "C: free space: $([math]::Round($c.FreeSpace/1GB,1)) GB" } catch { $script:lblHealthFree.Text = 'C: free space: ?' }
+    try {
+        $info = Get-LastBackupInfo
+        if ($info) {
+            $ts = $null; try { $ts = [datetime]::Parse($info.LastBackup) } catch {}
+            if ($ts) { $d = [math]::Round(((Get-Date) - $ts).TotalDays, 1); $script:lblHealthBackup.Text = "Last backup: $d day(s) ago" } else { $script:lblHealthBackup.Text = 'Last backup: unknown' }
+        } else { $script:lblHealthBackup.Text = 'Last backup: none yet' }
+    } catch { $script:lblHealthBackup.Text = 'Last backup: ?' }
+    try { $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue; $script:lblHealthDefender.Text = 'Windows Defender: ' + $(if ($mp.RealTimeProtectionEnabled) { 'On' } else { 'Off' }) } catch { $script:lblHealthDefender.Text = 'Windows Defender: ?' }
+}
+
+# Banner "Back up now" button (Advanced tab)
+$script:btnBannerBackup.add_Click({
+    Write-Log '=== Backup now (banner) ==='
+    Backup-UserSettings
+    Backup-UserFolders | Out-Null
+    Update-EasyHealth
+    Show-Message 'Backup complete. Your settings and files are safe on the USB.' 'Backup' Info
+})
+$btnRefreshHealth.add_Click({ Update-EasyHealth })
+
+# --- Easy: One-Click Optimize ---
+$script:btnEasyOptimize.add_Click({
+    if (-not (Show-YesNo "One-Click Optimize will:`n`n  1. Back up your settings & files to this USB`n  2. Create a restore point (so you can undo)`n  3. Disable safe background services (telemetry, Xbox, Fax, etc.)`n  4. Turn on recommended security (Defender, firewall, screen lock)`n  5. Do safe cleanup`n`nIt will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only.`n`nContinue?" 'One-Click Optimize' Question)) { return }
+    try {
+        Write-Log '===== EASY ONE-CLICK OPTIMIZE ====='
+        Backup-UserSettings
+        Backup-UserFolders | Out-Null
+        try { Checkpoint-Computer -Description 'System Optimizer Easy - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null; Write-Log 'Restore point created.' } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
+        $risky = @('bitlocker','officewsh','lockout','recyclebin','cleantemp','browscache')
+        $svcIds   = @($script:svcChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
+        $secIds   = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $risky) } | ForEach-Object { $_.Tag })
+        $maintIds = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $risky) } | ForEach-Object { $_.Tag })
+        if ($svcIds.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svcIds }
+        foreach ($id in $secIds)   { Apply-SecurityItem -Id $id }
+        foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id }
+        Save-LastRun -services $svcIds -security $secIds -maint $maintIds
+        Update-EasyHealth
+Write-Log '===== EASY OPTIMIZE DONE ====='
+Show-Message ("Done! Your PC was optimized safely.`n`n  - " + $svcIds.Count + " safe service(s) disabled`n  - " + $secIds.Count + " security item(s) applied`n  - " + $maintIds.Count + " maintenance item(s) done`n`nDetails are in the log below. A restart is recommended so everything takes effect.`n`nClick OK to continue.") 'Finished' Info
+    } catch {
+        Write-Log "ERROR: $($_.Exception.Message)"
+        Show-Message ("Could not finish: " + $_.Exception.Message) 'Error'
+    }
+})
+
+# --- Easy: Restore wizard ---
+function Show-RestorePick {
+    param([string]$Source)
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = 'Restore your files & settings'
+    $dlg.ClientSize = New-Object System.Drawing.Size(560, 440)
+    $dlg.FormBorderStyle = 'FixedDialog'; $dlg.StartPosition = 'CenterParent'; $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
+    $lbl = New-Object System.Windows.Forms.Label; $lbl.Text = "From: $Source`nChoose what to restore (tick items):"; $lbl.Location = New-Object System.Drawing.Point(12,12); $lbl.Size = New-Object System.Drawing.Size(530,40)
+    $dlg.Controls.Add($lbl)
+    $chkSettings = New-Object System.Windows.Forms.CheckBox; $chkSettings.Text = 'Settings (bookmarks, Wi-Fi, profile)'; $chkSettings.Checked = $true; $chkSettings.Location = New-Object System.Drawing.Point(12,60); $chkSettings.AutoSize = $true
+    $dlg.Controls.Add($chkSettings)
+    $clb = New-Object System.Windows.Forms.CheckedListBox
+    $clb.Location = New-Object System.Drawing.Point(12,88); $clb.Size = New-Object System.Drawing.Size(520,250); $clb.CheckOnClick = $true
+    foreach ($n in (Get-UserFolderMap).Keys) { $null = $clb.Items.Add($n, $true) }
+    $dlg.Controls.Add($clb)
+    $chkFiles = New-Object System.Windows.Forms.CheckBox; $chkFiles.Text = 'Restore only specific files (not whole folders)'; $chkFiles.Location = New-Object System.Drawing.Point(12,344); $chkFiles.AutoSize = $true
+    $dlg.Controls.Add($chkFiles)
+    $btnOK = New-Object System.Windows.Forms.Button; $btnOK.Text = 'Restore'; $btnOK.Size = New-Object System.Drawing.Size(100,30); $btnOK.Location = New-Object System.Drawing.Point(440,396)
+    $btnOK.add_Click({ $dlg.DialogResult = 'OK'; $dlg.Close() })
+    $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = 'Cancel'; $btnCancel.Size = New-Object System.Drawing.Size(90,30); $btnCancel.Location = New-Object System.Drawing.Point(340,396)
+    $btnCancel.add_Click({ $dlg.DialogResult = 'Cancel'; $dlg.Close() })
+    $dlg.Controls.Add($btnOK); $dlg.Controls.Add($btnCancel)
+    if ($dlg.ShowDialog() -eq 'OK') {
+        return @{ Source = $Source; Folders = @($clb.CheckedItems); Settings = $chkSettings.Checked; SpecificFiles = $chkFiles.Checked }
+    }
+    return $null
+}
+
+function Show-FilePick {
+    param([string]$Source, [string[]]$Folders)
+    $filesRoot = Join-Path $Source 'files'
+    $items = New-Object System.Collections.Generic.List[object]
+    foreach ($f in $Folders) {
+        $bk = Join-Path $filesRoot $f
+        if (-not (Test-Path $bk)) { continue }
+        Get-ChildItem -LiteralPath $bk -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $rel = $_.FullName.Substring($bk.Length).TrimStart('\')
+            $items.Add([pscustomobject]@{ Folder = $f; Rel = $rel; Full = $_.FullName })
+        }
+    }
+    if ($items.Count -eq 0) { Show-Message 'No files found in the backup.' 'Restore' Warn; return $null }
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = 'Choose specific files to restore'
+    $dlg.ClientSize = New-Object System.Drawing.Size(620, 480)
+    $dlg.FormBorderStyle = 'FixedDialog'; $dlg.StartPosition = 'CenterParent'; $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
+    $clb = New-Object System.Windows.Forms.CheckedListBox
+    $clb.Location = New-Object System.Drawing.Point(12,12); $clb.Size = New-Object System.Drawing.Size(590,400); $clb.CheckOnClick = $true
+    foreach ($i in $items) { $null = $clb.Items.Add($i.Folder + ' \ ' + $i.Rel, $false) }
+    $dlg.Controls.Add($clb)
+    $btnOK = New-Object System.Windows.Forms.Button; $btnOK.Text = 'Restore selected'; $btnOK.Size = New-Object System.Drawing.Size(140,30); $btnOK.Location = New-Object System.Drawing.Point(460,430)
+    $btnOK.add_Click({ $dlg.DialogResult = 'OK'; $dlg.Close() })
+    $dlg.Controls.Add($btnOK)
+    if ($dlg.ShowDialog() -eq 'OK') {
+        $picked = @()
+        for ($i = 0; $i -lt $clb.Items.Count; $i++) { if ($clb.GetItemChecked($i)) { $picked += $items[$i] } }
+        return $picked
+    }
+    return $null
+}
+
+$script:btnEasyRestore.add_Click({
+    if (-not (Show-YesNo "Restore your files & settings from the USB backup.`n`nContinue?" 'Restore' Question)) { return }
+    $src = Get-BackupBase
+    if (-not $src) {
+        $cands = Get-UsbBackupFolders
+        if ($cands.Count -eq 0) { Show-Message "No USB backup found.`nPlug in the USB drive and try again." 'Restore' Warn; return }
+        if ($cands.Count -eq 1) { $src = $cands[0] }
+        else {
+            $dlg = New-Object System.Windows.Forms.Form
+            $dlg.Text = 'Choose which PC backup'; $dlg.ClientSize = New-Object System.Drawing.Size(420,300); $dlg.StartPosition = 'CenterParent'
+            $lb = New-Object System.Windows.Forms.ListBox; $lb.Location = New-Object System.Drawing.Point(12,12); $lb.Size = New-Object System.Drawing.Size(390,220)
+            $lb.Items.AddRange([string[]]$cands); $dlg.Controls.Add($lb)
+            $btn = New-Object System.Windows.Forms.Button; $btn.Text = 'Use this'; $btn.Location = New-Object System.Drawing.Point(300,250); $btn.Size = New-Object System.Drawing.Size(90,30)
+            $btn.add_Click({ $dlg.DialogResult = 'OK'; $dlg.Close() }); $dlg.Controls.Add($btn)
+            if ($dlg.ShowDialog() -eq 'OK' -and $lb.SelectedItem) { $src = $lb.SelectedItem } else { return }
+        }
+    }
+    $pick = Show-RestorePick -Source $src
+    if (-not $pick) { return }
+    Write-Log "=== Easy restore from $src ==="
+    if ($pick.SpecificFiles) {
+        $picked = Show-FilePick -Source $src -Folders $pick.Folders
+        if (-not $picked) { return }
+        $sel = @{}
+        foreach ($p in $picked) {
+            if (-not $sel.ContainsKey($p.Folder)) { $sel[$p.Folder] = New-Object System.Collections.Generic.List[string] }
+            $sel[$p.Folder].Add($p.Rel)
+        }
+        $conv = @{}; foreach ($k in $sel.Keys) { $conv[$k] = @($sel[$k]) }
+        Restore-UserFolders -Source $src -Selections $conv
+    } else {
+        $sel = @{}
+        foreach ($n in $pick.Folders) { $sel[$n] = $true }
+        if ($sel.Count -gt 0) { Restore-UserFolders -Source $src -Selections $sel }
+        if ($pick.Settings) { Restore-UserSettings -Source $src }
+    }
+    Update-EasyHealth
+    Show-Message "Restore finished.`n`nSome settings need you to sign out/in or restart to take effect.`n`nClick OK to continue." 'Restore done' Info
+})
+
+# --- Utilities handlers ---
+function Set-UtilsGrid {
+    param($rows, [string[]]$cols)
+    $dt = New-Object System.Data.DataTable
+    foreach ($c in $cols) { [void]$dt.Columns.Add($c) }
+    foreach ($r in $rows) { [void]$dt.Rows.Add([object[]]$r) }
+    $script:dgUtil.AutoGenerateColumns = $true
+    $script:dgUtil.DataSource = $null
+    $script:dgUtil.DataSource = $dt
+}
+function Run-DupScan([string]$Path) {
+    $script:utilMode = 'dup'; Write-Log "Scanning for duplicate files: $Path"
+    try {
+        $groups = Find-DuplicateFiles -Path $Path
+        $rows = @(); $script:dupMeta = @()
+        for ($gi = 0; $gi -lt $groups.Count; $gi++) {
+            foreach ($f in $groups[$gi].Files) {
+                $rows += ,@('Duplicate', $f.Path, "$($f.SizeMB) MB")
+                $lm = $null; try { $lm = (Get-Item -LiteralPath $f.Path -ErrorAction Stop).LastWriteTime } catch { $lm = $null }
+                $script:dupMeta += [pscustomobject]@{ Group = $gi; Path = $f.Path; LastWriteTime = $lm }
+            }
+        }
+        Set-UtilsGrid $rows @('Type','Path','Size')
+        Write-Log ("Duplicates: " + $rows.Count + " files in " + $groups.Count + " group(s)")
+        if ($rows.Count -eq 0) { Show-Message 'No duplicate files found.' 'Duplicate finder' Info }
+    } catch { Write-Log "ERROR scanning: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
+}
+function Run-LargeScan([string]$Path) {
+    $script:utilMode = 'large'; Write-Log "Finding large files: $Path"
+    try {
+        $rows = @(Find-LargeFiles -Path $Path -MinimumMB 100 | ForEach-Object { ,@('Large file', $_.Path, "$($_.SizeMB) MB") })
+        Set-UtilsGrid $rows @('Type','Path','Size')
+        Write-Log ("Large files: " + $rows.Count)
+        if ($rows.Count -eq 0) { Show-Message 'No large files (over 100 MB) found.' 'Large-file finder' Info }
+    } catch { Write-Log "ERROR scanning: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
+}
+$btnUtilDup.add_Click({ Run-DupScan $script:txtUtilPath.Text })
+$btnUtilKeepNewest.add_Click({
+    if ($script:utilMode -ne 'dup' -or $script:dupMeta.Count -eq 0) { Show-Message 'Run Duplicate finder first, then click Keep newest.' 'Keep newest' Warn; return }
+    $byGroup = @{}
+    for ($i = 0; $i -lt $script:dupMeta.Count; $i++) {
+        $g = $script:dupMeta[$i].Group
+        if (-not $byGroup.ContainsKey($g)) { $byGroup[$g] = New-Object System.Collections.ArrayList }
+        [void]$byGroup[$g].Add($i)
+    }
+    $selected = 0
+    foreach ($g in $byGroup.Keys) {
+        $idx = @($byGroup[$g])
+        if ($idx.Count -lt 2) { continue }
+        $newest = $null; $newestI = -1
+        foreach ($i in $idx) {
+            $t = $script:dupMeta[$i].LastWriteTime
+            if ($null -eq $newest -or ($t -and $t -gt $newest)) { $newest = $t; $newestI = $i }
+        }
+        foreach ($i in $idx) { if ($i -ne $newestI) { $script:dgUtil.Rows[$i].Selected = $true; $selected++ } }
+    }
+    Write-Log ("Keep newest: selected " + $selected + " older copy(s) to remove")
+    Show-Message ("Selected $selected older duplicate copy(s) to remove (kept the newest of each group).`n`nNow click 'Send selected to Recycle Bin'.") 'Keep newest' Info
+})
+$btnUtilDisk.add_Click({
+    $script:utilMode = 'disk'; Write-Log "Analyzing disk usage: $($script:txtUtilPath.Text)"
+    try {
+        $rows = @()
+        foreach ($item in (Get-DiskUsage -Path $script:txtUtilPath.Text)) {
+            $rows += ,@('Folder', $item.Name, "$($item.SizeMB) MB", $item.Path)
+        }
+        Set-UtilsGrid $rows @('Type','Folder','Size','Path')
+        Write-Log ("Disk usage: " + $rows.Count + " top folders")
+    } catch { Write-Log "ERROR analyzing: $($_.Exception.Message)"; Show-Message ("Disk analysis could not finish: " + $_.Exception.Message) 'Error' }
+})
+$btnUtilLarge.add_Click({ Run-LargeScan $script:txtUtilPath.Text })
+$btnUtilProg.add_Click({
+    Write-Log 'Exporting installed programs list...'
+    $out = Export-InstalledPrograms
+    if ($out) { Show-Message "Installed programs list saved to:`n$out" 'Export done' Info }
+})
+$btnUtilBrowse.add_Click({
+    $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose a folder or drive to scan'
+    if ($d.ShowDialog() -eq 'OK') { $script:txtUtilPath.Text = $d.SelectedPath }
+})
+$btnUtilDelete.add_Click({
+    if ($script:utilMode -eq 'disk') { Show-Message 'Disk analyzer is read-only - nothing to delete here.' 'Utilities' Warn; return }
+    $paths = @(); foreach ($row in $script:dgUtil.SelectedRows) { if ($row.Cells['Path'].Value) { $paths += [string]$row.Cells['Path'].Value } }
+    if ($paths.Count -eq 0) { Show-Message "No row is selected.`n`nClick on a duplicate row first (so it is highlighted), then click 'Send selected to Recycle Bin' again." 'Delete' Warn; return }
+    if (-not (Show-YesNo ("Send " + $paths.Count + " item(s) to the Recycle Bin?`nYou can undo this from the Recycle Bin.") 'Confirm' Warn)) { return }
+    $n = Remove-ToRecycleBin -Paths $paths
+    Write-Log ("Sent " + $n + " item(s) to Recycle Bin")
+    if ($n -gt 0) {
+        if ($script:utilMode -eq 'dup') { Run-DupScan $script:txtUtilPath.Text }
+        elseif ($script:utilMode -eq 'large') { Run-LargeScan $script:txtUtilPath.Text }
+    }
+    Show-Message ("Sent " + $n + " item(s) to the Recycle Bin.`nThe list has been refreshed.`nIf you change your mind, restore them from the Recycle Bin.") 'Done' Info
+})
+# Open the folder (or select the file) in File Explorer for the given path.
+function Open-InExplorer([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $item = Get-Item -LiteralPath $Path
+    if ($item.PSIsContainer) { Start-Process explorer.exe -ArgumentList "`"$Path`"" | Out-Null }
+    else { Start-Process explorer.exe -ArgumentList "/select,`"$Path`"" | Out-Null }
+}
+# Double-click a result row to jump to its folder
+$script:dgUtil.add_CellDoubleClick({
+    param($sender, $e)
+    if ($e.RowIndex -ge 0 -and $e.RowIndex -lt $script:dgUtil.Rows.Count) {
+        $v = $script:dgUtil.Rows[$e.RowIndex].Cells['Path'].Value
+        if ($v) { Open-InExplorer ([string]$v) }
+    }
+})
+$btnUtilOpen.add_Click({
+    $done = $false
+    foreach ($row in $script:dgUtil.SelectedRows) { if ($row.Cells['Path'].Value) { Open-InExplorer ([string]$row.Cells['Path'].Value); $done = $true; break } }
+    if (-not $done) { Show-Message "No row is selected.`nClick on a file row first, then click 'Open file folder'." 'Open folder' Warn }
+})
+
+# Refresh the Easy health card whenever the Easy tab is shown
+$script:mainTabs.add_SelectedIndexChanged({
+    if ($script:mainTabs.SelectedTab.Text -eq 'Easy') { Update-EasyHealth }
+})
+$lblVersion.add_Click({
+    for ($i = 0; $i -lt $script:mainTabs.TabPages.Count; $i++) {
+        if ($script:mainTabs.TabPages[$i].Text -eq 'Version') { $script:mainTabs.SelectedIndex = $i; break }
+    }
+})
+Update-EasyHealth
+
 [void]$form.ShowDialog()
 if ($SmokeTest) { Write-Output 'SMOKE OK' }
+
+
+

@@ -21,13 +21,24 @@ for /f %%a in ('powershell -NoProfile -Command "$d = (Get-Location).Path.Substri
 if /I "%DTYPE%"=="Removable" (
     echo.
     echo Running from a USB drive - good.
+    echo.
+    echo The program will back up your User Settings to this USB drive
+    echo first, before running the optimizer.
+    echo.
+    echo IMPORTANT: Always run this program from the USB drive, and keep
+    echo this USB drive safe - it holds your settings backup and recovery key.
+    echo.
+    echo Press any key to start...
+    pause >nul
 ) else (
     echo.
-    echo Please only run the System-Optimizer from a USB drive.
-    echo This program will back up your user settings to the USB drive
-    echo before running the optimizer.
+    echo *** WARNING: You are NOT running from a USB drive. ***
+    echo This program must be run from a USB drive so it can back up
+    echo your User Settings to the USB drive first, before running.
     echo.
-    pause
+    echo Press any key to continue anyway, or close this window.
+    echo.
+    pause >nul
 )
 
 rem --- Start the app (PowerShell source, Bypass) ---

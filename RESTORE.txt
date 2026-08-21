@@ -9,6 +9,20 @@ WHAT YOU NEED
     (e.g. D:\SystemOptimizer-Backup\DESKTOP-H9D3P6E)
 
 --------------------------------------------------------------------
+EASIEST WAY - one-click restore
+--------------------------------------------------------------------
+1. Plug in the USB drive that holds your backup.
+2. Double-click  1-Click-System-Restore.cmd   (it is in the same folder
+   as this file, on the USB drive).
+3. Click Yes on the permission prompt.
+4. The program finds your backup automatically and restores:
+     - browser bookmarks (Edge / Chrome)
+     - Wi-Fi profiles
+     - user settings
+   A pop-up tells you when it is done.
+5. Sign out and back in (or restart) so everything takes effect.
+
+--------------------------------------------------------------------
 EASY WAY - let the program do it
 --------------------------------------------------------------------
 1. Run this program from the USB drive (double-click 1-Click-System-Optimizer.cmd,
