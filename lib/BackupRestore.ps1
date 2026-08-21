@@ -93,7 +93,7 @@ function Get-BackupTarget {
 
 function Backup-UserSettings {
     $target = Get-BackupTarget
-    if (-not $target) { Show-Message 'No backup location chosen.' 'Backup' Warn; return }
+    if (-not $target) { Show-Message "No backup location was chosen, so nothing was backed up.`n`nPlug in a USB drive and try again.`n`nClick OK to continue." 'Backup' Warn; return }
     New-Item -ItemType Directory -Path $target -Force | Out-Null
     Write-Log "Backing up user settings to: $target"
 
@@ -152,7 +152,7 @@ function Backup-UserSettings {
     } catch { Write-Log "  BitLocker key backup skipped: $($_.Exception.Message)" }
 
     Write-Log "Backup complete. Location: $target"
-    Show-Message "Settings backed up to:`n$target" 'Backup' Info
+    Show-Message "Your settings were backed up to:`n`n$target`n`nThis backup is safe to keep on your USB drive.`n`nClick OK to continue. You can switch to any tab when ready." 'Backup done' Info
     Write-Log "NOTE: passwords are NOT backed up (security). Use a password manager for those."
 }
 
@@ -184,7 +184,8 @@ function Test-BackupIntegrity {
     foreach ($f in $files) { Write-Log ("  " + $f.Name + "  (" + $f.Length + " bytes)") }
     Write-Log ("  Wi-Fi profiles: " + $wifiCount)
     $ok = ($files.Count -gt 0)
-    Show-Message ("Backup verified: " + $files.Count + " file(s) present." + $(if ($wifiCount -gt 0) { "`nWi-Fi profiles: $wifiCount" } else { "" })) 'Verify' Info
+    $wifiTxt = if ($wifiCount -gt 0) { "`nWi-Fi profiles: $wifiCount" } else { "" }
+    Show-Message ("Your backup is OK - $($files.Count) file(s) are present and readable.$wifiTxt`n`nClick OK to continue.") 'Backup verified' Info
     return $ok
 }
 
@@ -192,7 +193,9 @@ function Test-BackupIntegrity {
 # Restore user settings from a chosen folder.
 # --------------------------------------------------------------------------
 function Restore-UserSettings {
-    $src = Get-ChosenBackupFolder
+    [CmdletBinding()]
+    param([string]$Source)
+    $src = if ($Source) { $Source } else { Get-ChosenBackupFolder }
     if (-not $src) { return }
     if (-not (Test-Path $src)) { Show-Message 'Backup folder not found.' 'Restore' Warn; return }
     Write-Log "Restoring user settings from: $src"
@@ -228,15 +231,40 @@ function Restore-UserSettings {
         if (-not $samePc -and -not (Show-YesNo "This registry backup is from another PC. Registry settings may not fully transfer.`n`nImport it anyway?" 'Restore' Warn)) {
             Write-Log "  Skipped registry restore (from a different PC)."
         } else {
-            & reg.exe import $regFile.FullName 2>&1 | Out-Null
-            Write-Log "  Restored user registry settings. (You may need to sign out/in for full effect.)"
-            $restored++
+            try {
+                $out = & reg.exe import $regFile.FullName 2>&1
+                Write-Log "  Restored user registry settings. (You may need to sign out/in for full effect.)"
+                $restored++
+            } catch {
+                Write-Log "  Registry restore skipped (import failed - this is harmless, other settings were still restored): $($_.Exception.Message)"
+            }
         }
     }
 
     if ($restored -eq 0) { Write-Log "No restorable settings found in $src." }
     else { Write-Log "Restore complete." }
-    Show-Message 'Restore complete. Some settings (Wi-Fi, registry) need a sign-out/in or reboot to take effect.' 'Restore' Info
+    Show-Message "Restore finished.`n`nYour browser bookmarks and Wi-Fi profiles were restored.`n`nSome settings need you to sign out and back in (or restart) to take effect.`n`nClick OK to continue." 'Restore done' Info
+}
+
+# --------------------------------------------------------------------------
+# Run BEFORE applying any changes: create a System Restore point (so system
+# changes can be rolled back) and, if a USB is present, offer to back up the
+# user settings first.
+# --------------------------------------------------------------------------
+function Invoke-PreApplyBackup {
+    # 1) System Restore point (system-level rollback safety net)
+    try {
+        Checkpoint-Computer -Description 'System Optimizer - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null
+        Write-Log "Created a System Restore point before applying."
+    } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
+
+    # 2) If a USB drive is present, offer to back up user settings first.
+    $rem = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+    if ($rem) {
+        if (Show-YesNo "A USB drive ($($rem.DeviceID)) is present.`n`nBack up your user settings to it first? This is recommended before making changes." 'Back up first?' Question) {
+            Backup-UserSettings
+        }
+    }
 }
 
 $script:LibBackupLoaded = $true

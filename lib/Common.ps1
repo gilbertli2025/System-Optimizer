@@ -79,6 +79,7 @@ $script:LogMirrorHost = $false
 $script:LogFile        = $null
 $script:LogSink        = $null
 $script:UiSink         = $null
+$script:RunLog         = $null
 
 function Write-Log {
     [CmdletBinding()]
@@ -109,6 +110,16 @@ function Write-Log {
     } catch {
         # last-resort: surface to error stream without crashing
         Write-Error "Could not write log: $($_.Exception.Message)"
+    }
+
+    # Secondary run log (e.g. a per-run copy on the USB). Same line; never crash
+    # if the volume is unavailable/read-only.
+    if ($script:RunLog) {
+        try {
+            $dir2 = Split-Path -Parent $script:RunLog
+            if (-not (Test-Path $dir2)) { New-Item -ItemType Directory -Path $dir2 -Force | Out-Null }
+            [System.IO.File]::AppendAllText($script:RunLog, $payload, $script:Utf8NoBom)
+        } catch { }
     }
 
     # Console mirror
@@ -267,7 +278,11 @@ function Show-Message {
     if ($script:UiSink -and $script:UiSink.MessageBox) {
         & $script:UiSink.MessageBox $Text $Title OK $icon
     } elseif ([System.Windows.Forms.SystemInformation]::UserInteractive) {
-        [void][System.Windows.Forms.MessageBox]::Show($Text, $Title, 'OK', $icon)
+        # Center the box over the app window so it clearly belongs to it.
+        $owner = $null
+        try { $owner = [System.Windows.Forms.Form]::ActiveForm } catch { $owner = $null }
+        if ($owner) { [void][System.Windows.Forms.MessageBox]::Show($owner, $Text, $Title, 'OK', $icon) }
+        else { [void][System.Windows.Forms.MessageBox]::Show($Text, $Title, 'OK', $icon) }
     } else {
         $color = switch ($Severity) { 'Warn' { 'Yellow' } 'Error' { 'Red' } default { 'Cyan' } }
         Write-Host $Text -ForegroundColor $color
@@ -282,7 +297,10 @@ function Show-YesNo {
         $r = & $script:UiSink.MessageBox $Text $Title YesNo $icon
         return ($r -eq 'Yes')
     } elseif ([System.Windows.Forms.SystemInformation]::UserInteractive) {
-        $r = [System.Windows.Forms.MessageBox]::Show($Text, $Title, 'YesNo', $icon)
+        $owner = $null
+        try { $owner = [System.Windows.Forms.Form]::ActiveForm } catch { $owner = $null }
+        if ($owner) { $r = [System.Windows.Forms.MessageBox]::Show($owner, $Text, $Title, 'YesNo', $icon) }
+        else { $r = [System.Windows.Forms.MessageBox]::Show($Text, $Title, 'YesNo', $icon) }
         return ($r -eq 'Yes')
     }
     # No UI host. Default to YES so unattended scripts proceed; callers who

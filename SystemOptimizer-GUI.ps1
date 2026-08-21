@@ -30,6 +30,7 @@ $ScriptRoot = if ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (
 . (Join-Path $ScriptRoot 'lib\BackupRestore.ps1')
 . (Join-Path $ScriptRoot 'lib\FolderBackup.ps1')
 . (Join-Path $ScriptRoot 'lib\Utilities.ps1')
+. (Join-Path $ScriptRoot 'lib\StartupManager.ps1')
 
 $script:LogFile = $script:Paths.UnifiedLog
 
@@ -480,6 +481,8 @@ $btnUtilDup   = New-Object System.Windows.Forms.Button; $btnUtilDup.Text   = 'Du
 $btnUtilDisk  = New-Object System.Windows.Forms.Button; $btnUtilDisk.Text  = 'Disk analyzer';      $btnUtilDisk.Size  = New-Object System.Drawing.Size(120,32); $btnUtilDisk.Location  = New-Object System.Drawing.Point(150, 24)
 $btnUtilLarge = New-Object System.Windows.Forms.Button; $btnUtilLarge.Text = 'Large-file finder';  $btnUtilLarge.Size = New-Object System.Drawing.Size(130,32); $btnUtilLarge.Location = New-Object System.Drawing.Point(278, 24)
 $btnUtilProg  = New-Object System.Windows.Forms.Button; $btnUtilProg.Text  = 'Export programs list'; $btnUtilProg.Size = New-Object System.Drawing.Size(195,32); $btnUtilProg.Location = New-Object System.Drawing.Point(416, 24)
+$btnUtilStartup = New-Object System.Windows.Forms.Button; $btnUtilStartup.Text = 'Startup Manager'; $btnUtilStartup.Size = New-Object System.Drawing.Size(140, 26); $btnUtilStartup.Location = New-Object System.Drawing.Point(12, 92)
+$btnUtilShort = New-Object System.Windows.Forms.Button; $btnUtilShort.Text = 'Broken shortcuts'; $btnUtilShort.Size = New-Object System.Drawing.Size(140, 26); $btnUtilShort.Location = New-Object System.Drawing.Point(160, 92)
 
 $lblUtilPath = New-Object System.Windows.Forms.Label; $lblUtilPath.Text = 'Folder/drive to scan:'; $lblUtilPath.AutoSize = $true; $lblUtilPath.Location = New-Object System.Drawing.Point(12, 66)
 $script:txtUtilPath = New-Object System.Windows.Forms.TextBox; $script:txtUtilPath.Text = $env:USERPROFILE; $script:txtUtilPath.Size = New-Object System.Drawing.Size(400,22); $script:txtUtilPath.Location = New-Object System.Drawing.Point(140, 64)
@@ -487,6 +490,8 @@ $btnUtilBrowse = New-Object System.Windows.Forms.Button; $btnUtilBrowse.Text = '
 
 $gbUtil.Controls.Add($btnUtilDup) | Out-Null; $gbUtil.Controls.Add($btnUtilDisk) | Out-Null; $gbUtil.Controls.Add($btnUtilLarge) | Out-Null; $gbUtil.Controls.Add($btnUtilProg) | Out-Null
 $gbUtil.Controls.Add($lblUtilPath) | Out-Null; $gbUtil.Controls.Add($script:txtUtilPath) | Out-Null; $gbUtil.Controls.Add($btnUtilBrowse) | Out-Null
+$gbUtil.Controls.Add($btnUtilStartup) | Out-Null
+$gbUtil.Controls.Add($btnUtilShort) | Out-Null
 
 $script:dgUtil = New-Object System.Windows.Forms.DataGridView
 $script:dgUtil.Location = New-Object System.Drawing.Point(6, 132); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
@@ -1116,6 +1121,59 @@ function Open-InExplorer([string]$Path) {
     if ($item.PSIsContainer) { Start-Process explorer.exe -ArgumentList "`"$Path`"" | Out-Null }
     else { Start-Process explorer.exe -ArgumentList "/select,`"$Path`"" | Out-Null }
 }
+# Startup Manager dialog (V1.7): list boot entries + safe enable/disable.
+function Show-StartupManager {
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = 'Startup Manager'
+    $dlg.ClientSize = New-Object System.Drawing.Size(720, 520)
+    $dlg.StartPosition = 'CenterParent'; $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text = "Programs that run when Windows starts. Select one, then Disable or Enable - it is SAFE, nothing is deleted and you can change it back anytime."
+    $lbl.Location = New-Object System.Drawing.Point(12, 8); $lbl.Size = New-Object System.Drawing.Size(696, 40)
+    $dlg.Controls.Add($lbl)
+    $dg = New-Object System.Windows.Forms.DataGridView
+    $dg.Location = New-Object System.Drawing.Point(12, 54); $dg.Size = New-Object System.Drawing.Size(696, 360)
+    $dg.AllowUserToAddRows = $false; $dg.ReadOnly = $true; $dg.SelectionMode = 'FullRowSelect'; $dg.AutoSizeColumnsMode = 'Fill'; $dg.BackgroundColor = [System.Drawing.Color]::White
+    $dlg.Controls.Add($dg)
+    $script:startupEntries = @(Get-StartupEntries)
+    $dt = New-Object System.Data.DataTable
+    foreach ($c in @('Name','Status','Type','Command')) { [void]$dt.Columns.Add($c) }
+    foreach ($e in $script:startupEntries) { [void]$dt.Rows.Add([object[]]@($e.Name, $e.Status, $e.Type, $e.Command)) }
+    $dg.AutoGenerateColumns = $true; $dg.DataSource = $dt
+    $btnDis = New-Object System.Windows.Forms.Button; $btnDis.Text = 'Disable selected'; $btnDis.Location = New-Object System.Drawing.Point(12, 428); $btnDis.Size = New-Object System.Drawing.Size(130, 30)
+    $btnEn  = New-Object System.Windows.Forms.Button; $btnEn.Text  = 'Enable selected';   $btnEn.Location  = New-Object System.Drawing.Point(150, 428); $btnEn.Size  = New-Object System.Drawing.Size(130, 30)
+    $btnOpen = New-Object System.Windows.Forms.Button; $btnOpen.Text = 'Open location';   $btnOpen.Location = New-Object System.Drawing.Point(290, 428); $btnOpen.Size = New-Object System.Drawing.Size(120, 30)
+    $btnClose = New-Object System.Windows.Forms.Button; $btnClose.Text = 'Close';         $btnClose.Location = New-Object System.Drawing.Point(628, 428); $btnClose.Size = New-Object System.Drawing.Size(80, 30)
+    $dlg.Controls.Add($btnDis); $dlg.Controls.Add($btnEn); $dlg.Controls.Add($btnOpen); $dlg.Controls.Add($btnClose)
+    $btnDis.add_Click({
+        if ($dg.SelectedRows.Count -eq 0) { Show-Message 'Select a startup item first.' 'Startup Manager' Warn; return }
+        $idx = $dg.SelectedRows[0].Index; $e = $script:startupEntries[$idx]
+        if (-not (Show-YesNo ("Disable '" + $e.Name + "' from starting with Windows?`nYou can enable it again anytime.") 'Startup Manager' Question)) { return }
+        try { Disable-StartupEntry $e.Name $e.Location $e.Type; Write-Log "Disabled startup: $($e.Name)"; Show-Message ("Disabled '" + $e.Name + "'. It will no longer start with Windows.`nYou can enable it again from here anytime.") 'Startup Manager' Info; $dg.DataSource = $null; $script:startupEntries = @(Get-StartupEntries); $d2 = New-Object System.Data.DataTable; foreach ($c in @('Name','Status','Type','Command')) { [void]$d2.Columns.Add($c) }; foreach ($en in $script:startupEntries) { [void]$d2.Rows.Add([object[]]@($en.Name, $en.Status, $en.Type, $en.Command)) }; $dg.DataSource = $d2 } catch { Show-Message ("Could not disable: " + $_.Exception.Message) 'Startup Manager' Error }
+    })
+    $btnEn.add_Click({
+        if ($dg.SelectedRows.Count -eq 0) { Show-Message 'Select a startup item first.' 'Startup Manager' Warn; return }
+        $idx = $dg.SelectedRows[0].Index; $e = $script:startupEntries[$idx]
+        try { Enable-StartupEntry $e.Name $e.Location $e.Type; Write-Log "Enabled startup: $($e.Name)"; Show-Message ("Enabled '" + $e.Name + "' again.") 'Startup Manager' Info; $dg.DataSource = $null; $script:startupEntries = @(Get-StartupEntries); $d2 = New-Object System.Data.DataTable; foreach ($c in @('Name','Status','Type','Command')) { [void]$d2.Columns.Add($c) }; foreach ($en in $script:startupEntries) { [void]$d2.Rows.Add([object[]]@($en.Name, $en.Status, $en.Type, $en.Command)) }; $dg.DataSource = $d2 } catch { Show-Message ("Could not enable: " + $_.Exception.Message) 'Startup Manager' Error }
+    })
+    $btnOpen.add_Click({
+        if ($dg.SelectedRows.Count -eq 0) { Show-Message 'Select a startup item first.' 'Startup Manager' Warn; return }
+        $idx = $dg.SelectedRows[0].Index; $e = $script:startupEntries[$idx]
+        if ($e.Type -eq 'Folder') { Open-InExplorer $e.Command } else { Open-InExplorer $e.Command }
+    })
+    $btnClose.add_Click({ $dlg.Close() })
+    [void]$dlg.ShowDialog()
+}
+$btnUtilStartup.add_Click({ Show-StartupManager })
+$btnUtilShort.add_Click({
+    $script:utilMode = 'shortcut'; Write-Log 'Scanning for broken shortcuts...'
+    try {
+        $rows = @(Find-BrokenShortcuts | ForEach-Object { ,@('Broken', $_.Path, "$($_.SizeMB) MB") })
+        Set-UtilsGrid $rows @('Type','Path','Size')
+        Write-Log ("Broken shortcuts: " + $rows.Count)
+        if ($rows.Count -eq 0) { Show-Message 'No broken shortcuts found (your shortcuts all point to existing files).' 'Broken shortcuts' Info }
+    } catch { Write-Log "ERROR: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
+})
 # Double-click a result row to jump to its folder
 $script:dgUtil.add_CellDoubleClick({
     param($sender, $e)

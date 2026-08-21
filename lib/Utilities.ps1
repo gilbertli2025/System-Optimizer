@@ -79,6 +79,28 @@ function Find-DuplicateFiles {
     ,$groups
 }
 
+# Find .lnk shortcuts whose target no longer exists (broken). Read-only scan.
+function Find-BrokenShortcuts {
+    [CmdletBinding()]
+    param([string[]]$Paths = @(([Environment]::GetFolderPath('Desktop')), (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu')))
+    $broken = New-Object System.Collections.Generic.List[object]
+    $shell = $null
+    try { $shell = New-Object -ComObject WScript.Shell } catch { return @() }
+    foreach ($p in $Paths) {
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        Get-ChildItem -LiteralPath $p -Recurse -Filter *.lnk -File -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                $sc = $shell.CreateShortcut($_.FullName)
+                $target = $sc.TargetPath
+                if ($target -and -not (Test-Path -LiteralPath $target)) {
+                    $broken.Add([pscustomobject]@{ Path = $_.FullName; Target = $target; SizeMB = [math]::Round($_.Length/1MB,1) })
+                }
+            } catch { }
+        }
+    }
+    return ,$broken
+}
+
 # Delete to Recycle Bin (safe). Returns count deleted.
 function Remove-ToRecycleBin {
     [CmdletBinding()]

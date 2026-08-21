@@ -79,6 +79,16 @@ Then sign exe + msi with the cert (see AGENTS gotchas on SAC).
 - [ ] (later) duplicate finder, force uninstaller, driver checker.
 - USB is the recommended way to run + back up settings (launcher prompts if not on USB).
 
+## v1.7 (planned 2026-08-21) - more useful + professional (2-day plan)
+Researched (PC Manager, DeepPurge, SysManager, Norton, etc.). Stay safe/reversible.
+- [ ] **Startup Manager** (Utilities tab): list boot entries (Run/RunOnce keys + Startup folders); safe enable/disable via StartupApproved (reversible, like Task Manager); open file location.
+- [ ] **Broken Shortcuts finder**: find dead .lnk, delete to Recycle Bin.
+- [ ] **Drive Health (SMART)**: disk temp/wear/errors report, colour verdicts.
+- [ ] **Network Repair**: DNS flush, Winsock reset, ipconfig renew.
+- [ ] **System Health Check**: read-only scan giving a health summary + recommendations.
+- [ ] Version bump to v1.7.0 + changelog.
+- NOT adding (safety): registry cleaner, driver updater, RAM boost.
+
 ## USB deliverable layout (D:\System-Optimizer)
 Only runnable files for end users (NO source/build files):
 - `1-Click-System-Optimizer.cmd`, `1-Click-System-Restore.cmd`
