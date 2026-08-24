@@ -104,25 +104,33 @@ $script:AppVersion = '1.7.0'
 $script:AppBuildDate = '2026-08-21'
 $script:Changelog = @(
     @{ V='v1.7.0'; D='2026-08-21'; N=@(
-        'Startup Manager: see what runs at boot, safely enable/disable it',
-        'Broken Shortcuts finder: remove dead shortcuts (Recycle Bin safe)',
-        'Drive Health: check your disk temperature / wear / status',
-        'Network Repair: flush DNS and reset Winsock',
-        'System Health Check: a read-only summary + tips',
-        'Progress bar + working-stage shown during One-Click Optimize',
-        'USB safety: shows USB status + refuses One-Click without a USB drive' ) },
+        'PERFORMANCE',
+        '- PC Health Score (0-100) shown on the home screen: see at a glance how healthy your PC is',
+        '- Performance Boost: apply safe, reversible speed tweaks - and restore everything to defaults anytime',
+        '- System Report: full hardware + software + health report, saved to your USB and opened in Notepad',
+        '- Drive Health: check disk temperature / wear / SMART status to catch a failing drive early',
+        'SECURITY',
+        '- Security & Hardening (10 items), all reversible - everything can be undone',
+        '- USB safety: shows USB status, refuses One-Click Optimize without a USB, and checks free space first',
+        '- Network Repair: flush DNS + reset Winsock to fix common connection problems',
+        'MAINTENANCE & CLEANUP',
+        '- App updates guide: keep all your software current with winget',
+        '- Working indicator + progress bar during every scan and One-Click Optimize',
+        'TOOLS & DIAGNOSTICS',
+        '- Startup Manager: see what runs at boot and safely enable/disable it',
+        '- Broken Shortcuts finder: find and remove dead shortcuts (Recycle-Bin safe)',
+        '- System Health Check: read-only summary with tips',
+        '- Hardware info: CPU, RAM, storage and operating system details',
+        '- Network test: check latency and connectivity',
+        '- Battery report: detailed battery health report for laptops',
+        '- Commands reference: a handy list of useful commands for advanced users',
+        'BACKUP (timestamped history)',
+        '- Back up personal folders to your USB with timestamped, per-PC backup history (keeps the last 7)',
+        '- Restore files/settings, pick which folders to restore, restore specific files, or restore another PC backup',
+        '- Per-run log saved on the USB (keeps the last 7 runs)' ) },
     @{ V='v1.6.0'; D='2026-08-21'; N=@(
-        '3 tabs: Easy, Advanced, Utilities',
-        'Back up your personal folders (Documents, Pictures, Music, Videos, Downloads, Desktop) to this USB',
-        'Utilities: duplicate finder, disk analyzer, large-file finder, programs list',
-        'Keep-newest dedupe, and open a file/folder with one click',
-        'Per-run log saved on this USB (keeps the last 7 runs)',
-        'Safer by design: BitLocker, Office macros and account lockout are Advanced mode only' ) },
-    @{ V='v1.5.0'; D='2026-08-20'; N=@(
-        'Backup & Restore, one-click restore, USB detection',
-        'Scheduled auto-maintenance, backup-first safety' ) },
-    @{ V='v1.4.0'; D='2026-08-19'; N=@(
-        'Diagnostics, explain mode, undo-last run, export/import settings' ) }
+        'Foundation: 3 tabs (Easy, Advanced, Utilities)',
+        'Folder backup to USB, utilities (duplicate finder, disk analyzer, large files, programs list)' ) }
 )
 $pageVer = New-Object System.Windows.Forms.TabPage
 $pageVer.Text = 'Version'
@@ -144,7 +152,7 @@ $pageVer.Controls.Add($lblVerWhat) | Out-Null
 $txtChangelog = New-Object System.Windows.Forms.TextBox
 $txtChangelog.Multiline = $true; $txtChangelog.ReadOnly = $true; $txtChangelog.ScrollBars = 'Vertical'
 $txtChangelog.BackColor = [System.Drawing.Color]::White
-$txtChangelog.Location = New-Object System.Drawing.Point(8, 76); $txtChangelog.Size = New-Object System.Drawing.Size(860, 360)
+$txtChangelog.Location = New-Object System.Drawing.Point(8, 76); $txtChangelog.Size = New-Object System.Drawing.Size(860, 470)
 $txtChangelog.Font = New-Object System.Drawing.Font('Consolas', 9)
 $clLines = New-Object System.Collections.Generic.List[string]
 foreach ($v in $script:Changelog) {
