@@ -209,17 +209,26 @@ $script:btnEasyOptimize.ForeColor = [System.Drawing.Color]::White
 $script:btnEasyOptimize.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
 $script:easyPanel.Controls.Add($script:btnEasyOptimize) | Out-Null
 
-# Description
-$lblEasyDesc = New-Object System.Windows.Forms.Label
-$lblEasyDesc.Text = "What it does, in plain words:`n`n  - Backs up your settings & files to this USB first`n  - Creates a restore point (so you can undo)`n  - Disables safe background services (telemetry, Xbox, Fax, etc.)`n  - Turns on recommended security (Defender, firewall, screen lock)`n  - Does safe cleanup`n`nIt only uses safe, recommended items. It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only. Nothing here can harm your PC or lock you out."
-$lblEasyDesc.Location = New-Object System.Drawing.Point(0, 190); $lblEasyDesc.Size = New-Object System.Drawing.Size(880, 120)
-$lblEasyDesc.ForeColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
-$script:easyPanel.Controls.Add($lblEasyDesc) | Out-Null
+# What One-Click will apply (professional - shows the actual items)
+$gbEasyItems = New-Object System.Windows.Forms.GroupBox
+$gbEasyItems.Text = 'What One-Click Optimize will apply'
+$gbEasyItems.Location = New-Object System.Drawing.Point(0, 188); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 152)
+$script:easyPanel.Controls.Add($gbEasyItems) | Out-Null
+$script:txtEasyItems = New-Object System.Windows.Forms.TextBox
+$script:txtEasyItems.Multiline = $true; $script:txtEasyItems.ReadOnly = $true; $script:txtEasyItems.ScrollBars = 'Vertical'
+$script:txtEasyItems.BackColor = [System.Drawing.Color]::White; $script:txtEasyItems.Font = New-Object System.Drawing.Font('Consolas', 9)
+$script:txtEasyItems.Location = New-Object System.Drawing.Point(8, 22); $script:txtEasyItems.Size = New-Object System.Drawing.Size(864, 94)
+$gbEasyItems.Controls.Add($script:txtEasyItems) | Out-Null
+$lblEasySafe = New-Object System.Windows.Forms.Label
+$lblEasySafe.Text = "It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only. Nothing here can harm your PC."
+$lblEasySafe.AutoSize = $true; $lblEasySafe.Location = New-Object System.Drawing.Point(8, 124)
+$lblEasySafe.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
+$gbEasyItems.Controls.Add($lblEasySafe) | Out-Null
 
 # Restore button
 $script:btnEasyRestore = New-Object System.Windows.Forms.Button
 $script:btnEasyRestore.Text = 'Restore my files & settings'
-$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 320)
+$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 350)
 $script:easyPanel.Controls.Add($script:btnEasyRestore) | Out-Null
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -894,6 +903,21 @@ if ($SmokeTest) {
 # --------------------------------------------------------------------------
 # V1.6 Easy/Advanced handlers
 # --------------------------------------------------------------------------
+# Items One-Click Optimize never touches (Advanced mode only).
+$script:EasyRisky = @('bitlocker','officewsh','lockout','recyclebin','cleantemp','browscache')
+
+# List the exact services/security/maintenance that One-Click will apply.
+function Update-EasyItems {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $svc = @($script:svcChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
+    if ($svc.Count -gt 0) { $lines.Add('Services to disable:'); foreach ($s in $svc) { $lines.Add("   - $s") } }
+    $sec = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
+    if ($sec.Count -gt 0) { $lines.Add('Security to apply:'); foreach ($s in $sec) { $lines.Add("   - $s") } }
+    $mt  = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
+    if ($mt.Count -gt 0) { $lines.Add('Maintenance:'); foreach ($s in $mt) { $lines.Add("   - $s") } }
+    if ($script:txtEasyItems) { $script:txtEasyItems.Text = ($lines -join [Environment]::NewLine) }
+}
+
 function Update-EasyHealth {
     try { $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"; $script:lblHealthFree.Text = "C: free space: $([math]::Round($c.FreeSpace/1GB,1)) GB" } catch { $script:lblHealthFree.Text = 'C: free space: ?' }
     try {
@@ -924,15 +948,15 @@ $script:btnEasyOptimize.add_Click({
         Backup-UserSettings
         Backup-UserFolders | Out-Null
         try { Checkpoint-Computer -Description 'System Optimizer Easy - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null; Write-Log 'Restore point created.' } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
-        $risky = @('bitlocker','officewsh','lockout','recyclebin','cleantemp','browscache')
         $svcIds   = @($script:svcChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-        $secIds   = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $risky) } | ForEach-Object { $_.Tag })
-        $maintIds = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $risky) } | ForEach-Object { $_.Tag })
+        $secIds   = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
+        $maintIds = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
         if ($svcIds.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svcIds }
         foreach ($id in $secIds)   { Apply-SecurityItem -Id $id }
         foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id }
         Save-LastRun -services $svcIds -security $secIds -maint $maintIds
         Update-EasyHealth
+        Update-EasyItems
 Write-Log '===== EASY OPTIMIZE DONE ====='
 Show-Message ("Done! Your PC was optimized safely.`n`n  - " + $svcIds.Count + " safe service(s) disabled`n  - " + $secIds.Count + " security item(s) applied`n  - " + $maintIds.Count + " maintenance item(s) done`n`nDetails are in the log below. A restart is recommended so everything takes effect.`n`nClick OK to continue.") 'Finished' Info
     } catch {
@@ -1274,7 +1298,7 @@ $btnUtilOpen.add_Click({
 
 # Refresh the Easy health card whenever the Easy tab is shown
 $script:mainTabs.add_SelectedIndexChanged({
-    if ($script:mainTabs.SelectedTab.Text -eq 'Easy') { Update-EasyHealth }
+    if ($script:mainTabs.SelectedTab.Text -eq 'Easy') { Update-EasyHealth; Update-EasyItems }
 })
 $lblVersion.add_Click({
     for ($i = 0; $i -lt $script:mainTabs.TabPages.Count; $i++) {
@@ -1282,6 +1306,7 @@ $lblVersion.add_Click({
     }
 })
 Update-EasyHealth
+Update-EasyItems
 
 [void]$form.ShowDialog()
 if ($SmokeTest) { Write-Output 'SMOKE OK' }
