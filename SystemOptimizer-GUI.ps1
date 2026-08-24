@@ -514,9 +514,17 @@ $btnUtilDelete = New-Object System.Windows.Forms.Button; $btnUtilDelete.Text = '
 $btnUtilDelete.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $btnUtilDelete.ForeColor = [System.Drawing.Color]::White
 $btnUtilOpen = New-Object System.Windows.Forms.Button; $btnUtilOpen.Text = 'Open file folder'; $btnUtilOpen.Size = New-Object System.Drawing.Size(150,30); $btnUtilOpen.Location = New-Object System.Drawing.Point(6, 396)
 $lblUtilHint = New-Object System.Windows.Forms.Label
-$lblUtilHint.Text = "To remove duplicates safely: 1) click 'Keep newest' to auto-select the older copies (it keeps the newest of each group), 2) click 'Send selected to Recycle Bin'. Everything is Recycle-Bin safe - nothing is lost and you can undo it. Tip: double-click any file (or use 'Open file folder') to jump to its folder. Make sure the scanned folder is your own data (e.g. Documents / Pictures), not a system folder."
-$lblUtilHint.Location = New-Object System.Drawing.Point(6, 434); $lblUtilHint.Size = New-Object System.Drawing.Size(850, 90); $lblUtilHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
-$tabUtil.Controls.Add($gbUtil) | Out-Null; $tabUtil.Controls.Add($script:dgUtil) | Out-Null; $tabUtil.Controls.Add($btnUtilKeepNewest) | Out-Null; $tabUtil.Controls.Add($btnUtilDelete) | Out-Null; $tabUtil.Controls.Add($btnUtilOpen) | Out-Null; $tabUtil.Controls.Add($lblUtilHint) | Out-Null
+$lblUtilHint.Text = "Duplicates: click 'Keep newest' then 'Send selected to Recycle Bin' (safe - Recycle Bin only). Tip: double-click a file (or 'Open file folder') to jump to its folder. Scan your own data (e.g. Documents / Pictures)."
+$lblUtilHint.Location = New-Object System.Drawing.Point(6, 428); $lblUtilHint.Size = New-Object System.Drawing.Size(850, 42); $lblUtilHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
+# Working indicator (shown while a scan/task runs)
+$script:lblWork = New-Object System.Windows.Forms.Label
+$script:lblWork.Text = 'Ready'
+$script:lblWork.AutoSize = $true; $script:lblWork.Location = New-Object System.Drawing.Point(6, 472)
+$script:lblWork.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $script:lblWork.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$script:prgWork = New-Object System.Windows.Forms.ProgressBar
+$script:prgWork.Location = New-Object System.Drawing.Point(6, 494); $script:prgWork.Size = New-Object System.Drawing.Size(850, 16)
+$script:prgWork.Style = 'Marquee'; $script:prgWork.MarqueeAnimationSpeed = 25; $script:prgWork.Visible = $false
+$tabUtil.Controls.Add($gbUtil) | Out-Null; $tabUtil.Controls.Add($script:dgUtil) | Out-Null; $tabUtil.Controls.Add($btnUtilKeepNewest) | Out-Null; $tabUtil.Controls.Add($btnUtilDelete) | Out-Null; $tabUtil.Controls.Add($btnUtilOpen) | Out-Null; $tabUtil.Controls.Add($lblUtilHint) | Out-Null; $tabUtil.Controls.Add($script:lblWork) | Out-Null; $tabUtil.Controls.Add($script:prgWork) | Out-Null
 $script:dupMeta = @()
 $script:mainTabs.TabPages.Add($tabUtil) | Out-Null
 $script:utilMode = ''
@@ -1043,6 +1051,30 @@ function Set-UtilsGrid {
     $script:dgUtil.DataSource = $null
     $script:dgUtil.DataSource = $dt
 }
+# Run a scan in a background runspace so the animated "working" bar shows,
+# then call OnDone with the result on the UI thread.
+# Show a clear "working" indicator, run a task, then hide it.
+function Show-Working([string]$Text) {
+    $script:utilButtons = @($btnUtilDup,$btnUtilDisk,$btnUtilLarge,$btnUtilProg,$btnUtilStartup,$btnUtilShort,$btnUtilDrive,$btnUtilNet,$btnUtilHealth,$btnUtilKeepNewest,$btnUtilDelete,$btnUtilOpen)
+    $script:lblWork.Text = $Text; $script:lblWork.Visible = $true
+    $script:prgWork.Visible = $true
+    foreach ($b in $script:utilButtons) { $b.Enabled = $false }
+    [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
+    [System.Windows.Forms.Application]::DoEvents()
+}
+function Hide-Working {
+    $script:prgWork.Visible = $false
+    $script:lblWork.Text = 'Done'
+    [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::Default
+    foreach ($b in $script:utilButtons) { $b.Enabled = $true }
+}
+function Start-BackgroundScan {
+    param([string]$WorkingText, [scriptblock]$Action, [scriptblock]$OnDone = $null)
+    Show-Working $WorkingText
+    try { & $Action } catch { Write-Log "Task error: $($_.Exception.Message)"; Show-Message ("Could not finish: " + $_.Exception.Message) 'Error' }
+    Hide-Working
+    if ($OnDone) { & $OnDone }
+}
 function Run-DupScan([string]$Path) {
     $script:utilMode = 'dup'; Write-Log "Scanning for duplicate files: $Path"
     try {
@@ -1069,7 +1101,22 @@ function Run-LargeScan([string]$Path) {
         if ($rows.Count -eq 0) { Show-Message 'No large files (over 100 MB) found.' 'Large-file finder' Info }
     } catch { Write-Log "ERROR scanning: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
 }
-$btnUtilDup.add_Click({ Run-DupScan $script:txtUtilPath.Text })
+$btnUtilDup.add_Click({
+    $script:utilMode = 'dup'
+    Start-BackgroundScan -WorkingText 'Scanning for duplicate files - please wait...' -Action {
+        $groups = Find-DuplicateFiles -Path $script:txtUtilPath.Text
+        $rows = @(); $script:dupMeta = @()
+        for ($gi = 0; $gi -lt $groups.Count; $gi++) {
+            foreach ($f in $groups[$gi].Files) {
+                $rows += ,@('Duplicate', $f.Path, "$($f.SizeMB) MB")
+                $lm = $null; try { $lm = (Get-Item -LiteralPath $f.Path -ErrorAction Stop).LastWriteTime } catch { $lm = $null }
+                $script:dupMeta += [pscustomobject]@{ Group = $gi; Path = $f.Path; LastWriteTime = $lm }
+            }
+        }
+        Set-UtilsGrid $rows @('Type','Path','Size')
+        Write-Log ("Duplicates: " + $rows.Count + " files")
+    } -OnDone { if ($script:dgUtil.Rows.Count -eq 0) { Show-Message 'No duplicate files found.' 'Duplicate finder' Info } }
+})
 $btnUtilKeepNewest.add_Click({
     if ($script:utilMode -ne 'dup' -or $script:dupMeta.Count -eq 0) { Show-Message 'Run Duplicate finder first, then click Keep newest.' 'Keep newest' Warn; return }
     $byGroup = @{}
@@ -1093,21 +1140,26 @@ $btnUtilKeepNewest.add_Click({
     Show-Message ("Selected $selected older duplicate copy(s) to remove (kept the newest of each group).`n`nNow click 'Send selected to Recycle Bin'.") 'Keep newest' Info
 })
 $btnUtilDisk.add_Click({
-    $script:utilMode = 'disk'; Write-Log "Analyzing disk usage: $($script:txtUtilPath.Text)"
-    try {
+    $script:utilMode = 'disk'
+    Start-BackgroundScan -WorkingText 'Analyzing disk usage - please wait...' -Action {
         $rows = @()
-        foreach ($item in (Get-DiskUsage -Path $script:txtUtilPath.Text)) {
-            $rows += ,@('Folder', $item.Name, "$($item.SizeMB) MB", $item.Path)
-        }
+        foreach ($item in (Get-DiskUsage -Path $script:txtUtilPath.Text)) { $rows += ,@('Folder', $item.Name, "$($item.SizeMB) MB", $item.Path) }
         Set-UtilsGrid $rows @('Type','Folder','Size','Path')
         Write-Log ("Disk usage: " + $rows.Count + " top folders")
-    } catch { Write-Log "ERROR analyzing: $($_.Exception.Message)"; Show-Message ("Disk analysis could not finish: " + $_.Exception.Message) 'Error' }
+    }
 })
-$btnUtilLarge.add_Click({ Run-LargeScan $script:txtUtilPath.Text })
+$btnUtilLarge.add_Click({
+    $script:utilMode = 'large'
+    Start-BackgroundScan -WorkingText 'Finding large files - please wait...' -Action {
+        $rows = @(Find-LargeFiles -Path $script:txtUtilPath.Text -MinimumMB 100 | ForEach-Object { ,@('Large file', $_.Path, "$($_.SizeMB) MB") })
+        Set-UtilsGrid $rows @('Type','Path','Size')
+        Write-Log ("Large files: " + $rows.Count)
+    } -OnDone { if ($script:dgUtil.Rows.Count -eq 0) { Show-Message 'No large files (over 100 MB) found.' 'Large-file finder' Info } }
+})
 $btnUtilProg.add_Click({
-    Write-Log 'Exporting installed programs list...'
-    $out = Export-InstalledPrograms
-    if ($out) { Show-Message "Installed programs list saved to:`n$out" 'Export done' Info }
+    Start-BackgroundScan -WorkingText 'Exporting programs list - please wait...' -Action {
+        $script:progExport = Export-InstalledPrograms
+    } -OnDone { if ($script:progExport) { Show-Message "Installed programs list saved to:`n$script:progExport" 'Export done' Info } }
 })
 $btnUtilBrowse.add_Click({
     $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose a folder or drive to scan'
@@ -1178,35 +1230,33 @@ function Show-StartupManager {
 }
 $btnUtilStartup.add_Click({ Show-StartupManager })
 $btnUtilShort.add_Click({
-    $script:utilMode = 'shortcut'; Write-Log 'Scanning for broken shortcuts...'
-    try {
+    $script:utilMode = 'shortcut'
+    Start-BackgroundScan -WorkingText 'Scanning for broken shortcuts - please wait...' -Action {
         $rows = @(Find-BrokenShortcuts | ForEach-Object { ,@('Broken', $_.Path, "$($_.SizeMB) MB") })
         Set-UtilsGrid $rows @('Type','Path','Size')
         Write-Log ("Broken shortcuts: " + $rows.Count)
-        if ($rows.Count -eq 0) { Show-Message 'No broken shortcuts found (your shortcuts all point to existing files).' 'Broken shortcuts' Info }
-    } catch { Write-Log "ERROR: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
+    } -OnDone { if ($script:dgUtil.Rows.Count -eq 0) { Show-Message 'No broken shortcuts found (your shortcuts all point to existing files).' 'Broken shortcuts' Info } }
 })
 $btnUtilDrive.add_Click({
-    $script:utilMode = 'drive'; Write-Log 'Reading drive health (SMART)...'
-    try {
+    $script:utilMode = 'drive'
+    Start-BackgroundScan -WorkingText 'Reading drive health - please wait...' -Action {
         $rows = @(Get-DriveHealth | ForEach-Object { ,@('Drive', $_.Name, $_.Status, "$($_.SizeGB) GB", $(if($null -ne $_.TempC){"$($_.TempC) C"}else{'-'}), $(if($null -ne $_.WearPct){"$($_.WearPct) %"}else{'-'})) })
         Set-UtilsGrid $rows @('Type','Name','Status','Size','Temp','Wear')
         Write-Log ("Drive health: " + $rows.Count + " disk(s)")
-    } catch { Write-Log "ERROR: $($_.Exception.Message)"; Show-Message ("Could not read drive health: " + $_.Exception.Message) 'Error' }
+    }
 })
 $btnUtilNet.add_Click({
     if (-not (Show-YesNo "Network repair will flush DNS and reset Winsock (fixes many connection issues).`nYour network may briefly drop and a restart may be needed.`n`nContinue?" 'Network repair' Question)) { return }
-    Write-Log 'Running network repair...'
-    $out = Invoke-NetworkRepair
-    foreach ($l in $out) { Write-Log $l }
-    Show-Message "Network repair done.`n`nIf a restart is needed, please restart to finish.`n`nClick OK to continue." 'Network repair' Info
+    Start-BackgroundScan -WorkingText 'Repairing network - please wait...' -Action {
+        $out = Invoke-NetworkRepair
+        foreach ($l in $out) { Write-Log $l }
+    } -OnDone { Show-Message "Network repair done.`n`nIf a restart is needed, please restart to finish.`n`nClick OK to continue." 'Network repair' Info }
 })
 $btnUtilHealth.add_Click({
-    Write-Log 'Running system health check...'
-    $report = Get-SystemHealthReport
-    $txt = $report -join [Environment]::NewLine
-    Write-Log ('Health check: ' + $txt)
-    Show-Message $txt 'Health check' Info
+    Start-BackgroundScan -WorkingText 'Running health check - please wait...' -Action {
+        $script:healthReport = ((Get-SystemHealthReport) -join [Environment]::NewLine)
+        Write-Log ('Health check: ' + $script:healthReport)
+    } -OnDone { Show-Message $script:healthReport 'Health check' Info }
 })
 # Double-click a result row to jump to its folder
 $script:dgUtil.add_CellDoubleClick({
