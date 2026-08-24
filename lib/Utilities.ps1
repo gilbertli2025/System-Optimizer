@@ -232,14 +232,14 @@ function Get-HardwareInfo {
     return ,$lines
 }
 
-# Network diagnostics: ping + traceroute to a host.
-function Invoke-NetworkDiagnostics([string]$Host = 'www.google.com') {
+# Network diagnostics: ping + traceroute to a target.
+function Invoke-NetworkDiagnostics([string]$Target = 'www.google.com') {
     $lines = New-Object System.Collections.Generic.List[string]
-    $lines.Add('--- ping ' + $Host + ' ---')
-    $lines.Add((ping.exe -n 4 $Host 2>&1 | Out-String).Trim())
+    $lines.Add('--- ping ' + $Target + ' ---')
+    $lines.Add((ping.exe -n 4 $Target 2>&1 | Out-String).Trim())
     $lines.Add('')
-    $lines.Add('--- traceroute ' + $Host + ' ---')
-    $lines.Add((tracert.exe -d -h 8 $Host 2>&1 | Out-String).Trim())
+    $lines.Add('--- traceroute ' + $Target + ' ---')
+    $lines.Add((tracert.exe -d -h 8 $Target 2>&1 | Out-String).Trim())
     return ,$lines
 }
 
@@ -261,7 +261,12 @@ function Get-AppUpdates {
             $parts = $r -split '\s{2,}'
             if ($parts.Count -ge 2) { $lines.Add($parts[0].Trim() + '  ->  ' + $parts[1].Trim()) }
         }
+        if ($lines.Count -eq 0) { $lines.Add('No app updates available right now.') }
     } catch { $lines.Add('Could not check for updates.') }
+    $lines.Add('')
+    $lines.Add('HOW TO UPDATE:')
+    $lines.Add('  - To update them all: open Terminal (admin) and run:  winget upgrade --all')
+    $lines.Add('  - Or open the Microsoft Store and click Update.')
     return ,$lines
 }
 

@@ -1487,10 +1487,14 @@ $btnUtilNetwork.add_Click({
 })
 $btnUtilBattery.add_Click({
     Start-BackgroundScan -WorkingText 'Generating battery report - please wait...' -Action {
-        $script:batPath = New-BatteryReport
+        $script:hasBattery = $false
+        try { $script:hasBattery = [bool](Get-CimInstance Win32_Battery -ErrorAction Stop) } catch { $script:hasBattery = $false }
+        $script:batPath = $null
+        if ($script:hasBattery) { $script:batPath = New-BatteryReport }
     } -OnDone {
-        if ($script:batPath -and (Test-Path $script:batPath)) { Show-Message "Battery report opened in your browser.`nFile: $script:batPath" 'Battery report' Info }
-        else { Show-Message 'Battery report could not be generated (this may not be a laptop).' 'Battery report' Warn }
+        if ($script:hasBattery -and $script:batPath -and (Test-Path $script:batPath)) { Show-Message "Battery report opened in your browser.`nFile: $script:batPath" 'Battery report' Info }
+        elseif (-not $script:hasBattery) { Show-Message 'No battery found - this appears to be a desktop PC, not a laptop, so there is no battery report.' 'Battery report' Warn }
+        else { Show-Message 'Battery report could not be generated.' 'Battery report' Warn }
     }
 })
 $btnUtilApps.add_Click({
