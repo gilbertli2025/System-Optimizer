@@ -30,6 +30,27 @@ function Get-BackupBase([string]$ComputerName = $env:COMPUTERNAME) {
     return $null
 }
 
+# Total size (GB) of the personal folders that One-Click would back up.
+function Get-BackupSizeGB {
+    $map = Get-UserFolderMap
+    $total = 0L
+    foreach ($k in $map.Keys) {
+        $p = $map[$k]
+        if (Test-Path -LiteralPath $p) {
+            try { $total += (Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum } catch { }
+        }
+    }
+    return [math]::Round($total / 1GB, 2)
+}
+
+# Free space (GB) on the attached USB drive, or $null if none.
+function Get-UsbFreeSpaceGB {
+    $rem = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |
+        Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+    if (-not $rem) { return $null }
+    return [math]::Round($rem.FreeSpace / 1GB, 2)
+}
+
 # List all per-PC backup folders present on the USB (for "restore to another PC").
 function Get-UsbBackupFolders {
     $rem = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |

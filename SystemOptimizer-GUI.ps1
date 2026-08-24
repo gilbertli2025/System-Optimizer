@@ -980,7 +980,19 @@ $script:btnEasyOptimize.add_Click({
         Show-Message "One-Click Optimize needs a USB drive so it can back up your settings & files FIRST (safety).`n`nPlease plug in a USB drive, then run One-Click Optimize again." 'USB required' Warn
         return
     }
-    if (-not (Show-YesNo "One-Click Optimize will:`n`n  1. Back up your settings & files to this USB`n  2. Create a restore point (so you can undo)`n  3. Disable safe background services (telemetry, Xbox, Fax, etc.)`n  4. Turn on recommended security (Defender, firewall, screen lock)`n  5. Do safe cleanup`n`nIt will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only.`n`nContinue?" 'One-Click Optimize' Question)) { return }
+    # Check the USB has enough free space for the backup before doing anything.
+    Set-EasyProgress 3 'Checking USB space...'
+    try {
+        $backupGB = Get-BackupSizeGB
+        $usbFreeGB = Get-UsbFreeSpaceGB
+        if ($usbFreeGB -ne $null -and $backupGB -gt $usbFreeGB) {
+            Set-EasyProgress 0 'Ready'
+            Show-Message ("Your backup needs about $backupGB GB, but the USB drive only has $usbFreeGB GB free.`n`nPlease free up space on the USB (or use a larger USB drive), then run One-Click Optimize again.") 'USB too small' Warn
+            return
+        }
+    } catch { Write-Log "WARN could not check USB space: $($_.Exception.Message)" }
+    Set-EasyProgress 0 'Ready'
+    if (-not (Show-YesNo "One-Click Optimize will:`n`n  1. Back up your settings & files to this USB`n  2. Create a restore point (so you can undo)`n  3. Disable safe background services (telemetry, Xbox, Fax, etc.)`n  4. Turn on recommended security (Defender, firewall, screen lock)`n  5. Do safe cleanup`n`nIt will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only.`n`nContinue?" 'One-Click Optimize' Question)) { Set-EasyProgress 0 'Ready'; return }
     try {
         $script:btnEasyOptimize.Enabled = $false
         Set-EasyProgress 2 'Starting - back up your settings & files first...'
