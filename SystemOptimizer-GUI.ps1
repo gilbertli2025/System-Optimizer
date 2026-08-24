@@ -519,6 +519,72 @@ $tabBk.Controls.Add($lblBkNote) | Out-Null
 $tabs.TabPages.Add($tabBk) | Out-Null
 
 # --------------------------------------------------------------------------
+# Tab 6 (Advanced) - Commands reference for advanced users
+# --------------------------------------------------------------------------
+$tabCmd = New-Object System.Windows.Forms.TabPage
+$tabCmd.Text = 'Commands'
+$tabCmd.Padding = New-Object System.Windows.Forms.Padding(8)
+$cmdRef = @"
+WINDOWS COMMAND REFERENCE  (for advanced users)
+Use these in Windows Terminal / PowerShell. Many need admin (open Terminal as Administrator).
+
+=== APP & PACKAGE (winget) ===
+  winget update --all        Update ALL installed apps at once (great - keep software current).
+  winget list                List installed apps.
+  winget search <name>       Search for an app to install.
+  winget install <name>      Install an app (e.g. winget install 7zip.7zip).
+  winget upgrade <name>      Update one app.
+  winget uninstall <name>    Uninstall an app.
+  winget --version           Check winget version.
+
+=== DISK & REPAIR ===
+  sfc /scannow               Scan & repair protected Windows system files (safe, 5-10 min).
+  DISM /Online /Cleanup-Image /RestoreHealth   Repair the Windows image (10-20 min).
+  chkdsk C: /f              Check & fix disk errors (needs a restart).
+  cleanmgr                  Disk Cleanup tool (safe).
+  defrag C: /O              Optimize drives (defrag HDD / trim SSD).
+
+=== NETWORK ===
+  ipconfig /flushdns        Clear the DNS cache (fixes some connection issues).
+  ipconfig /release         Release the current IP.
+  ipconfig /renew           Get a new IP from the router.
+  ping google.com           Test if you can reach a site (4 pings).
+  tracert google.com        Show the route / where a connection is slow.
+  nslookup google.com       Look up a website's IP address.
+  netsh winsock reset       Reset network/Winsock (needs a restart).
+  Get-NetAdapter            List your network adapters (PowerShell).
+
+=== SYSTEM & POWER ===
+  systeminfo                Show detailed system info.
+  powercfg /batteryreport   Generate a battery health report (laptops).
+  shutdown /r /t 0          Restart now.
+  shutdown /s /t 0          Shut down now.
+  powercfg /a               Show available sleep states.
+
+=== PROCESSES & STARTUP ===
+  tasklist                  List running processes.
+  taskkill /F /IM <name>    Force-close a program (e.g. taskkill /F /IM notepad.exe).
+  Get-Process               List processes (PowerShell).
+  Get-Service               List services (PowerShell).
+
+=== FILES ===
+  robocopy <src> <dst> /E   Copy a folder including subfolders (incremental).
+  del /s /q <path>          Delete files (careful - permanent).
+"@
+$lblCmdTitle = New-Object System.Windows.Forms.Label
+$lblCmdTitle.Text = 'Commands reference - for advanced users (open Terminal, paste a command, press Enter):'
+$lblCmdTitle.AutoSize = $true; $lblCmdTitle.Location = New-Object System.Drawing.Point(8, 8)
+$lblCmdTitle.ForeColor = [System.Drawing.Color]::FromArgb(60,60,60)
+$tabCmd.Controls.Add($lblCmdTitle) | Out-Null
+$txtCmd = New-Object System.Windows.Forms.TextBox
+$txtCmd.Multiline = $true; $txtCmd.ReadOnly = $true; $txtCmd.ScrollBars = 'Both'
+$txtCmd.BackColor = [System.Drawing.Color]::White; $txtCmd.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtCmd.Location = New-Object System.Drawing.Point(8, 30); $txtCmd.Size = New-Object System.Drawing.Size(846, 400)
+$txtCmd.Text = $cmdRef
+$tabCmd.Controls.Add($txtCmd) | Out-Null
+$tabs.TabPages.Add($tabCmd) | Out-Null
+
+# --------------------------------------------------------------------------
 # Tab 6 - Utilities (hard-drive health & space tools, safe)
 # --------------------------------------------------------------------------
 $tabUtil = New-Object System.Windows.Forms.TabPage
@@ -1020,6 +1086,7 @@ function Update-EasyHealth {
 # Banner "Back up now" button (Advanced tab)
 $script:btnBannerBackup.add_Click({
     Write-Log '=== Backup now (banner) ==='
+    $script:BackupSession = New-BackupSession
     Backup-UserSettings
     Backup-UserFolders | Out-Null
     Update-EasyHealth
@@ -1056,6 +1123,7 @@ $script:btnEasyOptimize.add_Click({
         $script:btnEasyOptimize.Enabled = $false
         Set-EasyProgress 2 'Starting - back up your settings & files first...'
         Write-Log '===== EASY ONE-CLICK OPTIMIZE ====='
+        $script:BackupSession = New-BackupSession
         Set-EasyProgress 5 'Backing up your settings...'
         Backup-UserSettings
         Set-EasyProgress 25 'Backing up your folders...'
@@ -1186,7 +1254,7 @@ function Show-FilePick {
 
 $script:btnEasyRestore.add_Click({
     if (-not (Show-YesNo "Restore your files & settings from the USB backup.`n`nContinue?" 'Restore' Question)) { return }
-    $src = Get-BackupBase
+    $src = Get-LatestBackupSession
     if (-not $src) {
         $cands = Get-UsbBackupFolders
         if ($cands.Count -eq 0) { Show-Message "No USB backup found.`nPlug in the USB drive and try again." 'Restore' Warn; return }
@@ -1468,7 +1536,7 @@ $btnSysReport.add_Click({
         $script:sysReport = ((Get-SystemReport) -join [Environment]::NewLine)
     } -OnDone {
         $out = $null
-        $usbBase = Get-BackupBase
+        $usbBase = Get-LatestBackupSession
         if ($usbBase) { $out = Join-Path $usbBase 'SystemReport.txt'; try { $script:sysReport | Set-Content $out -Encoding UTF8 } catch { $out = $null } }
         if ($out -and (Test-Path $out)) { Show-Message ("System report saved to:`n$out") 'System report' Info; try { Start-Process notepad.exe -ArgumentList "`"$out`"" | Out-Null } catch { } }
         else { Show-Message $script:sysReport 'System report' Info }
