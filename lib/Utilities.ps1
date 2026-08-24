@@ -217,6 +217,54 @@ function Get-SystemReport {
     return ,$lines
 }
 
+# Read-only hardware info report.
+function Get-HardwareInfo {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('HARDWARE INFO')
+    try { $cs = Get-CimInstance Win32_ComputerSystem; $lines.Add('Computer: ' + $cs.Manufacturer + ' ' + $cs.Model) } catch { }
+    try { $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1; $lines.Add('CPU: ' + $cpu.Name.Trim() + '  (' + $cpu.NumberOfCores + ' cores / ' + $cpu.NumberOfLogicalProcessors + ' threads)') } catch { }
+    try { $gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1; $lines.Add('GPU: ' + $gpu.Name) } catch { }
+    try { $mem = Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum; $lines.Add('RAM: ' + [math]::Round($mem.Sum/1GB,1) + ' GB') } catch { }
+    try { $mo = Get-CimInstance Win32_BaseBoard; $lines.Add('Motherboard: ' + $mo.Manufacturer + ' ' + $mo.Product) } catch { }
+    try { $bios = Get-CimInstance Win32_BIOS; $lines.Add('BIOS: ' + $bios.Manufacturer + ' ' + $bios.SMBIOSBIOSVersion) } catch { }
+    $lines.Add('')
+    $lines.Add('Generated: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+    return ,$lines
+}
+
+# Network diagnostics: ping + traceroute to a host.
+function Invoke-NetworkDiagnostics([string]$Host = 'www.google.com') {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('--- ping ' + $Host + ' ---')
+    $lines.Add((ping.exe -n 4 $Host 2>&1 | Out-String).Trim())
+    $lines.Add('')
+    $lines.Add('--- traceroute ' + $Host + ' ---')
+    $lines.Add((tracert.exe -d -h 8 $Host 2>&1 | Out-String).Trim())
+    return ,$lines
+}
+
+# Generate a battery health report (opens the folder / returns the path).
+function New-BatteryReport {
+    $out = Join-Path $env:TEMP ("battery-report-" + $env:COMPUTERNAME + ".html")
+    & powercfg.exe /batteryreport /output $out 2>&1 | Out-Null
+    if (Test-Path $out) { Start-Process $out | Out-Null }
+    return $out
+}
+
+# List apps with available updates (winget). Review-only (no install).
+function Get-AppUpdates {
+    $lines = New-Object System.Collections.Generic.List[string]
+    try {
+        $u = winget.exe upgrade --disable-interactivity 2>$null
+        $rows = @($u | Select-Object -Skip 1 | Where-Object { $_ -and $_ -notmatch '^-{3,}' })
+        foreach ($r in $rows) {
+            $parts = $r -split '\s{2,}'
+            if ($parts.Count -ge 2) { $lines.Add($parts[0].Trim() + '  ->  ' + $parts[1].Trim()) }
+        }
+    } catch { $lines.Add('Could not check for updates.') }
+    return ,$lines
+}
+
 # Delete to Recycle Bin (safe). Returns count deleted.
 function Remove-ToRecycleBin {
     [CmdletBinding()]

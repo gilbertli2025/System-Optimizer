@@ -528,7 +528,7 @@ $tabUtil.AutoScroll = $true
 
 $gbUtil = New-Object System.Windows.Forms.GroupBox
 $gbUtil.Text = 'Hard-drive health & space tools (all safe - deletes go to the Recycle Bin)'
-$gbUtil.Location = New-Object System.Drawing.Point(6, 6); $gbUtil.Size = New-Object System.Drawing.Size(850, 120)
+$gbUtil.Location = New-Object System.Drawing.Point(6, 6); $gbUtil.Size = New-Object System.Drawing.Size(850, 152)
 
 $btnUtilDup   = New-Object System.Windows.Forms.Button; $btnUtilDup.Text   = 'Duplicate finder';   $btnUtilDup.Size   = New-Object System.Drawing.Size(130,32); $btnUtilDup.Location   = New-Object System.Drawing.Point(12, 24)
 $btnUtilDisk  = New-Object System.Windows.Forms.Button; $btnUtilDisk.Text  = 'Disk analyzer';      $btnUtilDisk.Size  = New-Object System.Drawing.Size(120,32); $btnUtilDisk.Location  = New-Object System.Drawing.Point(150, 24)
@@ -539,6 +539,13 @@ $btnUtilShort = New-Object System.Windows.Forms.Button; $btnUtilShort.Text = 'Br
 $btnUtilDrive = New-Object System.Windows.Forms.Button; $btnUtilDrive.Text = 'Drive health'; $btnUtilDrive.Size = New-Object System.Drawing.Size(110, 26); $btnUtilDrive.Location = New-Object System.Drawing.Point(308, 92)
 $btnUtilNet   = New-Object System.Windows.Forms.Button; $btnUtilNet.Text   = 'Network repair'; $btnUtilNet.Size   = New-Object System.Drawing.Size(130, 26); $btnUtilNet.Location   = New-Object System.Drawing.Point(426, 92)
 $btnUtilHealth= New-Object System.Windows.Forms.Button; $btnUtilHealth.Text= 'Health check';   $btnUtilHealth.Size  = New-Object System.Drawing.Size(110, 26); $btnUtilHealth.Location  = New-Object System.Drawing.Point(564, 92)
+
+# Row 3 - diagnostics & system tools
+$btnUtilHardware = New-Object System.Windows.Forms.Button; $btnUtilHardware.Text = 'Hardware info';  $btnUtilHardware.Size = New-Object System.Drawing.Size(130, 26); $btnUtilHardware.Location = New-Object System.Drawing.Point(12, 120)
+$btnUtilNetwork  = New-Object System.Windows.Forms.Button; $btnUtilNetwork.Text  = 'Network test';   $btnUtilNetwork.Size  = New-Object System.Drawing.Size(130, 26); $btnUtilNetwork.Location  = New-Object System.Drawing.Point(150, 120)
+$btnUtilBattery  = New-Object System.Windows.Forms.Button; $btnUtilBattery.Text  = 'Battery report'; $btnUtilBattery.Size  = New-Object System.Drawing.Size(130, 26); $btnUtilBattery.Location  = New-Object System.Drawing.Point(288, 120)
+$btnUtilApps     = New-Object System.Windows.Forms.Button; $btnUtilApps.Text     = 'App updates';    $btnUtilApps.Size     = New-Object System.Drawing.Size(130, 26); $btnUtilApps.Location     = New-Object System.Drawing.Point(426, 120)
+$gbUtil.Controls.Add($btnUtilHardware) | Out-Null; $gbUtil.Controls.Add($btnUtilNetwork) | Out-Null; $gbUtil.Controls.Add($btnUtilBattery) | Out-Null; $gbUtil.Controls.Add($btnUtilApps) | Out-Null
 
 $lblUtilPath = New-Object System.Windows.Forms.Label; $lblUtilPath.Text = 'Folder/drive to scan:'; $lblUtilPath.AutoSize = $true; $lblUtilPath.Location = New-Object System.Drawing.Point(12, 66)
 $script:txtUtilPath = New-Object System.Windows.Forms.TextBox; $script:txtUtilPath.Text = $env:USERPROFILE; $script:txtUtilPath.Size = New-Object System.Drawing.Size(400,22); $script:txtUtilPath.Location = New-Object System.Drawing.Point(140, 64)
@@ -553,7 +560,7 @@ $gbUtil.Controls.Add($btnUtilNet) | Out-Null
 $gbUtil.Controls.Add($btnUtilHealth) | Out-Null
 
 $script:dgUtil = New-Object System.Windows.Forms.DataGridView
-$script:dgUtil.Location = New-Object System.Drawing.Point(6, 132); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
+$script:dgUtil.Location = New-Object System.Drawing.Point(6, 162); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
 $script:dgUtil.AllowUserToAddRows = $false; $script:dgUtil.ReadOnly = $true; $script:dgUtil.SelectionMode = 'FullRowSelect'; $script:dgUtil.AutoSizeColumnsMode = 'Fill'; $script:dgUtil.BackgroundColor = [System.Drawing.Color]::White
 
 $btnUtilKeepNewest = New-Object System.Windows.Forms.Button; $btnUtilKeepNewest.Text = 'Keep newest (auto-select older copies)'; $btnUtilKeepNewest.Size = New-Object System.Drawing.Size(222,32); $btnUtilKeepNewest.Location = New-Object System.Drawing.Point(6, 358)
@@ -1231,7 +1238,7 @@ function Set-UtilsGrid {
 # then call OnDone with the result on the UI thread.
 # Show a clear "working" indicator, run a task, then hide it.
 function Show-Working([string]$Text) {
-    $script:utilButtons = @($btnUtilDup,$btnUtilDisk,$btnUtilLarge,$btnUtilProg,$btnUtilStartup,$btnUtilShort,$btnUtilDrive,$btnUtilNet,$btnUtilHealth,$btnUtilKeepNewest,$btnUtilDelete,$btnUtilOpen,$btnPerfBoost,$btnPerfRestore,$btnSysReport)
+    $script:utilButtons = @($btnUtilDup,$btnUtilDisk,$btnUtilLarge,$btnUtilProg,$btnUtilStartup,$btnUtilShort,$btnUtilDrive,$btnUtilNet,$btnUtilHealth,$btnUtilKeepNewest,$btnUtilDelete,$btnUtilOpen,$btnPerfBoost,$btnPerfRestore,$btnSysReport,$btnUtilHardware,$btnUtilNetwork,$btnUtilBattery,$btnUtilApps)
     $script:lblWork.Text = $Text; $script:lblWork.Visible = $true
     $script:prgWork.Visible = $true
     foreach ($b in $script:utilButtons) { $b.Enabled = $false }
@@ -1463,8 +1470,34 @@ $btnSysReport.add_Click({
         $out = $null
         $usbBase = Get-BackupBase
         if ($usbBase) { $out = Join-Path $usbBase 'SystemReport.txt'; try { $script:sysReport | Set-Content $out -Encoding UTF8 } catch { $out = $null } }
-        if ($out -and (Test-Path $out)) { Show-Message ("System report saved to:`n$out") 'System report' Info }
+        if ($out -and (Test-Path $out)) { Show-Message ("System report saved to:`n$out") 'System report' Info; try { Start-Process notepad.exe -ArgumentList "`"$out`"" | Out-Null } catch { } }
         else { Show-Message $script:sysReport 'System report' Info }
+    }
+})
+$btnUtilHardware.add_Click({
+    Start-BackgroundScan -WorkingText 'Reading hardware info - please wait...' -Action {
+        $script:hardInfo = ((Get-HardwareInfo) -join [Environment]::NewLine)
+    } -OnDone { Show-Message $script:hardInfo 'Hardware info' Info }
+})
+$btnUtilNetwork.add_Click({
+    Start-BackgroundScan -WorkingText 'Testing network - please wait...' -Action {
+        $script:netDiag = ((Invoke-NetworkDiagnostics) -join [Environment]::NewLine)
+        Write-Log $script:netDiag
+    } -OnDone { Show-Message $script:netDiag 'Network test' Info }
+})
+$btnUtilBattery.add_Click({
+    Start-BackgroundScan -WorkingText 'Generating battery report - please wait...' -Action {
+        $script:batPath = New-BatteryReport
+    } -OnDone {
+        if ($script:batPath -and (Test-Path $script:batPath)) { Show-Message "Battery report opened in your browser.`nFile: $script:batPath" 'Battery report' Info }
+        else { Show-Message 'Battery report could not be generated (this may not be a laptop).' 'Battery report' Warn }
+    }
+})
+$btnUtilApps.add_Click({
+    Start-BackgroundScan -WorkingText 'Checking for app updates - please wait...' -Action {
+        $script:appUpdates = ((Get-AppUpdates) -join [Environment]::NewLine)
+    } -OnDone {
+        if ($script:appUpdates) { Show-Message ("Available updates:`n`n" + $script:appUpdates) 'App updates' Info } else { Show-Message 'No app updates found, or winget unavailable.' 'App updates' Info }
     }
 })
 
