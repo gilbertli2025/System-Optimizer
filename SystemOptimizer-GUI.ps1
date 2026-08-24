@@ -1066,23 +1066,61 @@ function Show-RestorePick {
     param([string]$Source)
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = 'Restore your files & settings'
-    $dlg.ClientSize = New-Object System.Drawing.Size(560, 440)
+    $dlg.ClientSize = New-Object System.Drawing.Size(620, 540)
     $dlg.FormBorderStyle = 'FixedDialog'; $dlg.StartPosition = 'CenterParent'; $dlg.MaximizeBox = $false; $dlg.MinimizeBox = $false
-    $lbl = New-Object System.Windows.Forms.Label; $lbl.Text = "From: $Source`nChoose what to restore (tick items):"; $lbl.Location = New-Object System.Drawing.Point(12,12); $lbl.Size = New-Object System.Drawing.Size(530,40)
-    $dlg.Controls.Add($lbl)
-    $chkSettings = New-Object System.Windows.Forms.CheckBox; $chkSettings.Text = 'Settings (bookmarks, Wi-Fi, profile)'; $chkSettings.Checked = $true; $chkSettings.Location = New-Object System.Drawing.Point(12,60); $chkSettings.AutoSize = $true
-    $dlg.Controls.Add($chkSettings)
+    $dlg.BackColor = [System.Drawing.Color]::White
+
+    $lblTitle = New-Object System.Windows.Forms.Label
+    $lblTitle.Text = 'Restore your files & settings'
+    $lblTitle.AutoSize = $true; $lblTitle.Location = New-Object System.Drawing.Point(20, 16)
+    $lblTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+    $dlg.Controls.Add($lblTitle)
+
+    $lblFrom = New-Object System.Windows.Forms.Label
+    $lblFrom.Text = "From this backup:  $Source"
+    $lblFrom.AutoSize = $true; $lblFrom.Location = New-Object System.Drawing.Point(20, 48)
+    $lblFrom.ForeColor = [System.Drawing.Color]::FromArgb(90, 90, 90)
+    $dlg.Controls.Add($lblFrom)
+
+    $lblDesc = New-Object System.Windows.Forms.Label
+    $lblDesc.Text = 'Tick what you want to bring back to this PC - it will be restored to the same folders.'
+    $lblDesc.AutoSize = $false; $lblDesc.Location = New-Object System.Drawing.Point(20, 74); $lblDesc.Size = New-Object System.Drawing.Size(580, 22)
+    $dlg.Controls.Add($lblDesc)
+
+    $gbSettings = New-Object System.Windows.Forms.GroupBox
+    $gbSettings.Text = 'Settings'; $gbSettings.Location = New-Object System.Drawing.Point(20, 104); $gbSettings.Size = New-Object System.Drawing.Size(580, 52)
+    $dlg.Controls.Add($gbSettings)
+    $chkSettings = New-Object System.Windows.Forms.CheckBox
+    $chkSettings.Text = 'Settings (browser bookmarks, Wi-Fi, profile)'; $chkSettings.Checked = $true
+    $chkSettings.AutoSize = $true; $chkSettings.Location = New-Object System.Drawing.Point(14, 20)
+    $gbSettings.Controls.Add($chkSettings)
+
+    $gbFolders = New-Object System.Windows.Forms.GroupBox
+    $gbFolders.Text = 'My folders'; $gbFolders.Location = New-Object System.Drawing.Point(20, 166); $gbFolders.Size = New-Object System.Drawing.Size(580, 240)
+    $dlg.Controls.Add($gbFolders)
     $clb = New-Object System.Windows.Forms.CheckedListBox
-    $clb.Location = New-Object System.Drawing.Point(12,88); $clb.Size = New-Object System.Drawing.Size(520,250); $clb.CheckOnClick = $true
+    $clb.Location = New-Object System.Drawing.Point(12, 24); $clb.Size = New-Object System.Drawing.Size(556, 155); $clb.CheckOnClick = $true; $clb.BackColor = [System.Drawing.Color]::White
     foreach ($n in (Get-UserFolderMap).Keys) { $null = $clb.Items.Add($n, $true) }
-    $dlg.Controls.Add($clb)
-    $chkFiles = New-Object System.Windows.Forms.CheckBox; $chkFiles.Text = 'Restore only specific files (not whole folders)'; $chkFiles.Location = New-Object System.Drawing.Point(12,344); $chkFiles.AutoSize = $true
-    $dlg.Controls.Add($chkFiles)
-    $btnOK = New-Object System.Windows.Forms.Button; $btnOK.Text = 'Restore'; $btnOK.Size = New-Object System.Drawing.Size(100,30); $btnOK.Location = New-Object System.Drawing.Point(440,396)
-    $btnOK.add_Click({ $dlg.DialogResult = 'OK'; $dlg.Close() })
-    $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = 'Cancel'; $btnCancel.Size = New-Object System.Drawing.Size(90,30); $btnCancel.Location = New-Object System.Drawing.Point(340,396)
+    $gbFolders.Controls.Add($clb)
+    $chkFiles = New-Object System.Windows.Forms.CheckBox
+    $chkFiles.Text = 'Restore only specific files (not whole folders)'
+    $chkFiles.AutoSize = $true; $chkFiles.Location = New-Object System.Drawing.Point(12, 190)
+    $gbFolders.Controls.Add($chkFiles)
+
+    $lblNote = New-Object System.Windows.Forms.Label
+    $lblNote.Text = "Tip: after restoring, sign out and back in (or restart) so everything takes effect."
+    $lblNote.AutoSize = $false; $lblNote.Location = New-Object System.Drawing.Point(20, 414); $lblNote.Size = New-Object System.Drawing.Size(580, 22)
+    $lblNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
+    $dlg.Controls.Add($lblNote)
+
+    $btnCancel = New-Object System.Windows.Forms.Button; $btnCancel.Text = 'Cancel'; $btnCancel.Size = New-Object System.Drawing.Size(100, 34); $btnCancel.Location = New-Object System.Drawing.Point(380, 480)
     $btnCancel.add_Click({ $dlg.DialogResult = 'Cancel'; $dlg.Close() })
-    $dlg.Controls.Add($btnOK); $dlg.Controls.Add($btnCancel)
+    $dlg.Controls.Add($btnCancel)
+    $btnOK = New-Object System.Windows.Forms.Button; $btnOK.Text = 'Restore'; $btnOK.Size = New-Object System.Drawing.Size(120, 34); $btnOK.Location = New-Object System.Drawing.Point(488, 480)
+    $btnOK.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $btnOK.ForeColor = [System.Drawing.Color]::White
+    $btnOK.add_Click({ $dlg.DialogResult = 'OK'; $dlg.Close() })
+    $dlg.Controls.Add($btnOK)
+
     if ($dlg.ShowDialog() -eq 'OK') {
         return @{ Source = $Source; Folders = @($clb.CheckedItems); Settings = $chkSettings.Checked; SpecificFiles = $chkFiles.Checked }
     }
