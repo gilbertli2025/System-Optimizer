@@ -195,34 +195,34 @@ $script:easyPanel.Controls.Add($lblEasyTitle) | Out-Null
 
 # Health card
 $gbHealth = New-Object System.Windows.Forms.GroupBox
-$gbHealth.Text = 'Your PC health'; $gbHealth.Location = New-Object System.Drawing.Point(0, 36); $gbHealth.Size = New-Object System.Drawing.Size(430, 130)
+$gbHealth.Text = 'Your PC health'; $gbHealth.Location = New-Object System.Drawing.Point(0, 36); $gbHealth.Size = New-Object System.Drawing.Size(430, 150)
 $script:easyPanel.Controls.Add($gbHealth) | Out-Null
 $lblHealthCaption = New-Object System.Windows.Forms.Label
-$lblHealthCaption.Text = 'PC Health:'; $lblHealthCaption.AutoSize = $true; $lblHealthCaption.Location = New-Object System.Drawing.Point(300, 22); $lblHealthCaption.ForeColor = [System.Drawing.Color]::FromArgb(90,90,90)
+$lblHealthCaption.Text = 'PC Health:'; $lblHealthCaption.AutoSize = $true; $lblHealthCaption.Location = New-Object System.Drawing.Point(16, 20); $lblHealthCaption.ForeColor = [System.Drawing.Color]::FromArgb(90,90,90)
 $gbHealth.Controls.Add($lblHealthCaption) | Out-Null
 $script:lblHealthScore = New-Object System.Windows.Forms.Label
-$script:lblHealthScore.Text = '...'; $script:lblHealthScore.AutoSize = $true; $script:lblHealthScore.Location = New-Object System.Drawing.Point(382, 18); $script:lblHealthScore.Font = New-Object System.Drawing.Font('Segoe UI', 15, [System.Drawing.FontStyle]::Bold)
+$script:lblHealthScore.Text = '...'; $script:lblHealthScore.AutoSize = $true; $script:lblHealthScore.Location = New-Object System.Drawing.Point(92, 16); $script:lblHealthScore.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
 $gbHealth.Controls.Add($script:lblHealthScore) | Out-Null
 $script:lblHealthFree = New-Object System.Windows.Forms.Label
-$script:lblHealthFree.Text = 'C: free space: ...'; $script:lblHealthFree.AutoSize = $true; $script:lblHealthFree.Location = New-Object System.Drawing.Point(12, 24)
+$script:lblHealthFree.Text = 'C: free space: ...'; $script:lblHealthFree.AutoSize = $true; $script:lblHealthFree.Location = New-Object System.Drawing.Point(16, 50)
 $gbHealth.Controls.Add($script:lblHealthFree) | Out-Null
 $script:lblHealthBackup = New-Object System.Windows.Forms.Label
-$script:lblHealthBackup.Text = 'Last backup: none yet'; $script:lblHealthBackup.AutoSize = $true; $script:lblHealthBackup.Location = New-Object System.Drawing.Point(12, 52)
+$script:lblHealthBackup.Text = 'Last backup: none yet'; $script:lblHealthBackup.AutoSize = $true; $script:lblHealthBackup.Location = New-Object System.Drawing.Point(16, 74)
 $gbHealth.Controls.Add($script:lblHealthBackup) | Out-Null
 $script:lblHealthDefender = New-Object System.Windows.Forms.Label
-$script:lblHealthDefender.Text = 'Windows Defender: ...'; $script:lblHealthDefender.AutoSize = $true; $script:lblHealthDefender.Location = New-Object System.Drawing.Point(12, 80)
+$script:lblHealthDefender.Text = 'Windows Defender: ...'; $script:lblHealthDefender.AutoSize = $true; $script:lblHealthDefender.Location = New-Object System.Drawing.Point(16, 98)
 $gbHealth.Controls.Add($script:lblHealthDefender) | Out-Null
 $script:lblHealthUsb = New-Object System.Windows.Forms.Label
-$script:lblHealthUsb.Text = 'USB drive: ...'; $script:lblHealthUsb.AutoSize = $true; $script:lblHealthUsb.Location = New-Object System.Drawing.Point(12, 104)
+$script:lblHealthUsb.Text = 'USB drive: ...'; $script:lblHealthUsb.AutoSize = $true; $script:lblHealthUsb.Location = New-Object System.Drawing.Point(16, 122)
 $gbHealth.Controls.Add($script:lblHealthUsb) | Out-Null
 $btnRefreshHealth = New-Object System.Windows.Forms.Button
-$btnRefreshHealth.Text = 'Refresh'; $btnRefreshHealth.Size = New-Object System.Drawing.Size(80, 26); $btnRefreshHealth.Location = New-Object System.Drawing.Point(330, 96)
+$btnRefreshHealth.Text = 'Refresh'; $btnRefreshHealth.Size = New-Object System.Drawing.Size(80, 26); $btnRefreshHealth.Location = New-Object System.Drawing.Point(330, 122)
 $gbHealth.Controls.Add($btnRefreshHealth) | Out-Null
 
-# Big One-Click Optimize button
+# Big One-Click Optimize button (moved to the right)
 $script:btnEasyOptimize = New-Object System.Windows.Forms.Button
 $script:btnEasyOptimize.Text = "ONE-CLICK`nOPTIMIZE"
-$script:btnEasyOptimize.Size = New-Object System.Drawing.Size(200, 130); $script:btnEasyOptimize.Location = New-Object System.Drawing.Point(460, 36)
+$script:btnEasyOptimize.Size = New-Object System.Drawing.Size(250, 150); $script:btnEasyOptimize.Location = New-Object System.Drawing.Point(620, 36)
 $script:btnEasyOptimize.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204)
 $script:btnEasyOptimize.ForeColor = [System.Drawing.Color]::White
 $script:btnEasyOptimize.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
@@ -231,18 +231,18 @@ $script:easyPanel.Controls.Add($script:btnEasyOptimize) | Out-Null
 # Progress + stage indicator for One-Click Optimize
 $script:lblEasyStage = New-Object System.Windows.Forms.Label
 $script:lblEasyStage.Text = 'Ready'
-$script:lblEasyStage.AutoSize = $true; $script:lblEasyStage.Location = New-Object System.Drawing.Point(0, 176)
+$script:lblEasyStage.AutoSize = $true; $script:lblEasyStage.Location = New-Object System.Drawing.Point(0, 196)
 $script:lblEasyStage.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $script:lblEasyStage.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $script:easyPanel.Controls.Add($script:lblEasyStage) | Out-Null
 $script:prgEasy = New-Object System.Windows.Forms.ProgressBar
-$script:prgEasy.Location = New-Object System.Drawing.Point(0, 196); $script:prgEasy.Size = New-Object System.Drawing.Size(880, 18)
+$script:prgEasy.Location = New-Object System.Drawing.Point(0, 216); $script:prgEasy.Size = New-Object System.Drawing.Size(880, 18)
 $script:prgEasy.Minimum = 0; $script:prgEasy.Maximum = 100; $script:prgEasy.Style = 'Continuous'
 $script:easyPanel.Controls.Add($script:prgEasy) | Out-Null
 
 # What One-Click will apply (interactive - user can untick anything)
 $gbEasyItems = New-Object System.Windows.Forms.GroupBox
 $gbEasyItems.Text = 'What One-Click Optimize will apply  (untick anything you do NOT want)'
-$gbEasyItems.Location = New-Object System.Drawing.Point(0, 220); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 160)
+$gbEasyItems.Location = New-Object System.Drawing.Point(0, 240); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 160)
 $script:easyPanel.Controls.Add($gbEasyItems) | Out-Null
 $lblEasyPick = New-Object System.Windows.Forms.Label
 $lblEasyPick.Text = 'Recommended items are already ticked - untick any you do not want:'
@@ -259,14 +259,14 @@ $gbEasyItems.Controls.Add($script:clbEasy) | Out-Null
 $lblEasySafe = New-Object System.Windows.Forms.Label
 $lblEasySafe.Text = "It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only."
 $lblEasySafe.AutoSize = $false; $lblEasySafe.Size = New-Object System.Drawing.Size(880, 18)
-$lblEasySafe.Location = New-Object System.Drawing.Point(0, 386)
+$lblEasySafe.Location = New-Object System.Drawing.Point(0, 406)
 $lblEasySafe.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
 $script:easyPanel.Controls.Add($lblEasySafe) | Out-Null
 
 # Restore button
 $script:btnEasyRestore = New-Object System.Windows.Forms.Button
 $script:btnEasyRestore.Text = 'Restore my files & settings'
-$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 408)
+$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 428)
 $script:easyPanel.Controls.Add($script:btnEasyRestore) | Out-Null
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -1519,6 +1519,7 @@ Update-EasyItems
 
 [void]$form.ShowDialog()
 if ($SmokeTest) { Write-Output 'SMOKE OK' }
+
 
 
 
