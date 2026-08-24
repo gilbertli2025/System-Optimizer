@@ -1205,6 +1205,7 @@ $btnUtilDelete.add_Click({
 })
 # Open the folder (or select the file) in File Explorer for the given path.
 function Open-InExplorer([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
     if (-not (Test-Path -LiteralPath $Path)) { return }
     $item = Get-Item -LiteralPath $Path
     if ($item.PSIsContainer) { Start-Process explorer.exe -ArgumentList "`"$Path`"" | Out-Null }
@@ -1248,7 +1249,7 @@ function Show-StartupManager {
     $btnOpen.add_Click({
         if ($dg.SelectedRows.Count -eq 0) { Show-Message 'Select a startup item first.' 'Startup Manager' Warn; return }
         $idx = $dg.SelectedRows[0].Index; $e = $script:startupEntries[$idx]
-        if ($e.Type -eq 'Folder') { Open-InExplorer $e.Command } else { Open-InExplorer $e.Command }
+        if ($e.Command) { Open-InExplorer $e.Command }
     })
     $btnClose.add_Click({ $dlg.Close() })
     [void]$dlg.ShowDialog()
