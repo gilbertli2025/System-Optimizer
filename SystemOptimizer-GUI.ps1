@@ -540,7 +540,9 @@ Use these in Windows Terminal / PowerShell. Many need admin (open Terminal as Ad
 === DISK & REPAIR ===
   sfc /scannow               Scan & repair protected Windows system files (safe, 5-10 min).
   DISM /Online /Cleanup-Image /RestoreHealth   Repair the Windows image (10-20 min).
-  chkdsk C: /f              Check & fix disk errors (needs a restart).
+  chkdsk C: /o              Quick disk repair (offline, usually no restart - try this first).
+  chkdsk C: /f              Thorough disk repair (locks drive; may ask to check at restart).
+  chkdsk C: /r              Deep scan - finds bad sectors + recovers readable data (implies /f).
   cleanmgr                  Disk Cleanup tool (safe).
   defrag C: /O              Optimize drives (defrag HDD / trim SSD).
 
