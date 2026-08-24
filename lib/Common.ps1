@@ -59,6 +59,13 @@ function Get-Paths {
 # Trigger initial build
 Get-Paths | Out-Null
 
+# Is a USB (removable) drive present? Used for the backup-first safety guide.
+function Test-UsbPresent {
+    $rem = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" -ErrorAction SilentlyContinue |
+        Where-Object { $_.DriveType -eq 2 } | Select-Object -First 1
+    return [bool]$rem
+}
+
 # --------------------------------------------------------------------------
 # Logging (no BOM, atomic-ish, console/GUI-agnostic)
 # --------------------------------------------------------------------------

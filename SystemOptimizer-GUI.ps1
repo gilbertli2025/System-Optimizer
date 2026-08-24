@@ -196,6 +196,9 @@ $gbHealth.Controls.Add($script:lblHealthBackup) | Out-Null
 $script:lblHealthDefender = New-Object System.Windows.Forms.Label
 $script:lblHealthDefender.Text = 'Windows Defender: ...'; $script:lblHealthDefender.AutoSize = $true; $script:lblHealthDefender.Location = New-Object System.Drawing.Point(12, 80)
 $gbHealth.Controls.Add($script:lblHealthDefender) | Out-Null
+$script:lblHealthUsb = New-Object System.Windows.Forms.Label
+$script:lblHealthUsb.Text = 'USB drive: ...'; $script:lblHealthUsb.AutoSize = $true; $script:lblHealthUsb.Location = New-Object System.Drawing.Point(12, 104)
+$gbHealth.Controls.Add($script:lblHealthUsb) | Out-Null
 $btnRefreshHealth = New-Object System.Windows.Forms.Button
 $btnRefreshHealth.Text = 'Refresh'; $btnRefreshHealth.Size = New-Object System.Drawing.Size(80, 26); $btnRefreshHealth.Location = New-Object System.Drawing.Point(330, 96)
 $gbHealth.Controls.Add($btnRefreshHealth) | Out-Null
@@ -929,6 +932,8 @@ function Update-EasyHealth {
         } else { $script:lblHealthBackup.Text = 'Last backup: none yet' }
     } catch { $script:lblHealthBackup.Text = 'Last backup: ?' }
     try { $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue; $script:lblHealthDefender.Text = 'Windows Defender: ' + $(if ($mp.RealTimeProtectionEnabled) { 'On' } else { 'Off' }) } catch { $script:lblHealthDefender.Text = 'Windows Defender: ?' }
+    if (Test-UsbPresent) { $script:lblHealthUsb.Text = 'USB drive: present'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(0, 140, 0) }
+    else { $script:lblHealthUsb.Text = 'USB drive: NOT detected - plug one in for backup'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(190, 30, 30) }
 }
 
 # Banner "Back up now" button (Advanced tab)
@@ -943,6 +948,10 @@ $btnRefreshHealth.add_Click({ Update-EasyHealth })
 
 # --- Easy: One-Click Optimize ---
 $script:btnEasyOptimize.add_Click({
+    if (-not (Test-UsbPresent)) {
+        Show-Message "One-Click Optimize needs a USB drive so it can back up your settings & files FIRST (safety).`n`nPlease plug in a USB drive, then run One-Click Optimize again." 'USB required' Warn
+        return
+    }
     if (-not (Show-YesNo "One-Click Optimize will:`n`n  1. Back up your settings & files to this USB`n  2. Create a restore point (so you can undo)`n  3. Disable safe background services (telemetry, Xbox, Fax, etc.)`n  4. Turn on recommended security (Defender, firewall, screen lock)`n  5. Do safe cleanup`n`nIt will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only.`n`nContinue?" 'One-Click Optimize' Question)) { return }
     try {
         Write-Log '===== EASY ONE-CLICK OPTIMIZE ====='
