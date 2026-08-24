@@ -30,13 +30,13 @@ function Get-BackupBase([string]$ComputerName = $env:COMPUTERNAME) {
     return $null
 }
 
-# Total size (GB) of the personal folders that One-Click would back up.
-function Get-BackupSizeGB {
+# Total size (GB) of the folders One-Click would back up (only selected ones).
+function Get-BackupSizeGB([string[]]$Folders = @('Documents','Pictures','Music','Videos','Downloads','Desktop')) {
     $map = Get-UserFolderMap
     $total = 0L
-    foreach ($k in $map.Keys) {
+    foreach ($k in $Folders) {
         $p = $map[$k]
-        if (Test-Path -LiteralPath $p) {
+        if ($p -and (Test-Path -LiteralPath $p)) {
             try { $total += (Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum } catch { }
         }
     }

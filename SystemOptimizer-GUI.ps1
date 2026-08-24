@@ -945,6 +945,11 @@ function Update-EasyItems {
     $script:easyItemsList = New-Object System.Collections.Generic.List[object]
     $script:clbEasy.BeginUpdate()
     try {
+        # Folders to back up (all ticked by default; user can untick)
+        $folderNames = @('Desktop','Documents','Downloads','Pictures','Videos','Music')
+        $script:clbEasy.Items.Add('-- FOLDERS TO BACK UP --', $false) | Out-Null
+        $script:easyItemsList.Add([pscustomobject]@{ Id=$null; Category='header'; Text='FOLDERS' })
+        foreach ($fn in $folderNames) { $script:clbEasy.Items.Add($fn, $true) | Out-Null; $script:easyItemsList.Add([pscustomobject]@{ Id=$fn; Category='folder'; Text=$fn }) }
         $svc = @($script:svcChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) })
         if ($svc.Count -gt 0) {
             $script:clbEasy.Items.Add('-- SERVICES TO DISABLE --', $false) | Out-Null
@@ -1003,10 +1008,16 @@ $script:btnEasyOptimize.add_Click({
         Show-Message "One-Click Optimize needs a USB drive so it can back up your settings & files FIRST (safety).`n`nPlease plug in a USB drive, then run One-Click Optimize again." 'USB required' Warn
         return
     }
-    # Check the USB has enough free space for the backup before doing anything.
+    # Read what the user chose: folders to back up + items to apply.
+    $checked = @()
+    for ($i = 0; $i -lt $script:clbEasy.Items.Count; $i++) {
+        if ($script:clbEasy.GetItemChecked($i) -and $script:easyItemsList[$i].Id) { $checked += $script:easyItemsList[$i] }
+    }
+    $folderIds = @($checked | Where-Object { $_.Category -eq 'folder' } | ForEach-Object { $_.Id })
+    # Check the USB has enough free space for the selected folders.
     Set-EasyProgress 3 'Checking USB space...'
     try {
-        $backupGB = Get-BackupSizeGB
+        $backupGB = Get-BackupSizeGB -Folders $folderIds
         $usbFreeGB = Get-UsbFreeSpaceGB
         if ($usbFreeGB -ne $null -and $backupGB -gt $usbFreeGB) {
             Set-EasyProgress 0 'Ready'
@@ -1023,13 +1034,9 @@ $script:btnEasyOptimize.add_Click({
         Set-EasyProgress 5 'Backing up your settings...'
         Backup-UserSettings
         Set-EasyProgress 25 'Backing up your folders...'
-        Backup-UserFolders | Out-Null
+        Backup-UserFolders -Folders $folderIds | Out-Null
         Set-EasyProgress 45 'Creating a restore point...'
         try { Checkpoint-Computer -Description 'System Optimizer Easy - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null; Write-Log 'Restore point created.' } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
-        $checked = @()
-        for ($i = 0; $i -lt $script:clbEasy.Items.Count; $i++) {
-            if ($script:clbEasy.GetItemChecked($i) -and $script:easyItemsList[$i].Id) { $checked += $script:easyItemsList[$i] }
-        }
         $svcIds   = @($checked | Where-Object { $_.Category -eq 'svc' } | ForEach-Object { $_.Id })
         $secIds   = @($checked | Where-Object { $_.Category -eq 'sec' } | ForEach-Object { $_.Id })
         $maintIds = @($checked | Where-Object { $_.Category -eq 'maint' } | ForEach-Object { $_.Id })
