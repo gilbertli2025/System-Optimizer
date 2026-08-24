@@ -148,6 +148,75 @@ function Get-SystemHealthReport {
     return ,$lines
 }
 
+# Read-only PC health score (0-100) + recommendations.
+function Get-PcHealthScore {
+    $score = 100
+    $recs = New-Object System.Collections.Generic.List[string]
+    try {
+        $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+        $freePct = ($c.FreeSpace / $c.Size) * 100
+        if ($freePct -lt 10) { $score -= 25; $recs.Add('Low disk space on C: - free up some space.') }
+        elseif ($freePct -lt 20) { $score -= 10; $recs.Add('C: free space is getting low - free up space.') }
+    } catch { }
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $used = (($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize) * 100
+        if ($used -gt 90) { $score -= 20; $recs.Add('High RAM usage - close some programs.') }
+        elseif ($used -gt 80) { $score -= 10 }
+    } catch { }
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $up = (New-TimeSpan -Start $os.LastBootUpTime -End (Get-Date)).TotalDays
+        if ($up -gt 14) { $score -= 10; $recs.Add('PC has been on over 14 days - a restart can help.') }
+    } catch { }
+    try {
+        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        if (-not $mp.RealTimeProtectionEnabled) { $score -= 20; $recs.Add('Windows Defender is off - turn it on.') }
+    } catch { }
+    try {
+        $st = Get-StartupEntries
+        if ($st.Count -gt 10) { $score -= 10; $recs.Add('Many startup items - consider disabling some.') }
+    } catch { }
+    if (-not (Test-UsbPresent)) { $score -= 5 }
+    $score = [math]::Max(0, [math]::Min(100, $score))
+    return [pscustomobject]@{ Score = $score; Recommendations = @($recs) }
+}
+
+# Safe, reversible performance tweaks for a smoother feel.
+function Invoke-PerformanceBoost {
+    & powercfg.exe /setactive SCHEME_MIN 2>&1 | Out-Null
+    try { Set-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name 'GameDVR_Enabled' -Value 0 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name 'VisualFXSetting' -Value 2 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'TaskbarAnimations' -Value 0 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value 0 -Type DWord -ErrorAction Stop } catch { }
+    Write-Log 'Performance Boost applied (High Performance power plan, Game DVR off, visual effects on performance).'
+}
+function Invoke-PerformanceRestore {
+    & powercfg.exe /setactive SCHEME_BALANCED 2>&1 | Out-Null
+    try { Set-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name 'GameDVR_Enabled' -Value 1 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name 'VisualFXSetting' -Value 0 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'TaskbarAnimations' -Value 1 -Type DWord -ErrorAction Stop } catch { }
+    try { Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value 1 -Type DWord -ErrorAction Stop } catch { }
+    Write-Log 'Performance Boost reverted to Windows defaults.'
+}
+
+# Read-only system report (OS / CPU / RAM / disk / network / uptime) as text.
+function Get-SystemReport {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('SYSTEM REPORT')
+    try { $os = Get-CimInstance Win32_OperatingSystem; $lines.Add('OS: ' + $os.Caption + '  ' + $os.Version) } catch { }
+    try { $cs = Get-CimInstance Win32_ComputerSystem; $lines.Add('Computer: ' + $cs.Manufacturer + ' ' + $cs.Model) } catch { }
+    try { $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1; $lines.Add('CPU: ' + $cpu.Name.Trim()) } catch { }
+    try { $os = Get-CimInstance Win32_OperatingSystem; $lines.Add('RAM: ' + [math]::Round($os.TotalVisibleMemorySize/1MB,1) + ' GB total, ' + [math]::Round($os.FreePhysicalMemory/1MB,1) + ' GB free') } catch { }
+    try { $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"; $lines.Add('C: drive ' + [math]::Round($c.Size/1GB,0) + ' GB, ' + [math]::Round($c.FreeSpace/1GB,1) + ' GB free') } catch { }
+    try { Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object { $lines.Add('Disk: ' + $_.FriendlyName + ' (' + $_.HealthStatus + ')') } } catch { }
+    try { $os = Get-CimInstance Win32_OperatingSystem; $up = [math]::Round((New-TimeSpan -Start $os.LastBootUpTime -End (Get-Date)).TotalDays,1); $lines.Add('Uptime: ' + $up + ' day(s)') } catch { }
+    try { $n = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" | Select-Object -First 2; foreach ($x in $n) { if ($x.IPAddress) { $lines.Add('Network IP: ' + ($x.IPAddress -join ', ')) } } } catch { }
+    $lines.Add('')
+    $lines.Add('Generated: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+    return ,$lines
+}
+
 # Delete to Recycle Bin (safe). Returns count deleted.
 function Remove-ToRecycleBin {
     [CmdletBinding()]

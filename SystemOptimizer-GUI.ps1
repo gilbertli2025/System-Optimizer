@@ -197,6 +197,12 @@ $script:easyPanel.Controls.Add($lblEasyTitle) | Out-Null
 $gbHealth = New-Object System.Windows.Forms.GroupBox
 $gbHealth.Text = 'Your PC health'; $gbHealth.Location = New-Object System.Drawing.Point(0, 36); $gbHealth.Size = New-Object System.Drawing.Size(430, 130)
 $script:easyPanel.Controls.Add($gbHealth) | Out-Null
+$lblHealthCaption = New-Object System.Windows.Forms.Label
+$lblHealthCaption.Text = 'PC Health:'; $lblHealthCaption.AutoSize = $true; $lblHealthCaption.Location = New-Object System.Drawing.Point(300, 22); $lblHealthCaption.ForeColor = [System.Drawing.Color]::FromArgb(90,90,90)
+$gbHealth.Controls.Add($lblHealthCaption) | Out-Null
+$script:lblHealthScore = New-Object System.Windows.Forms.Label
+$script:lblHealthScore.Text = '...'; $script:lblHealthScore.AutoSize = $true; $script:lblHealthScore.Location = New-Object System.Drawing.Point(382, 18); $script:lblHealthScore.Font = New-Object System.Drawing.Font('Segoe UI', 15, [System.Drawing.FontStyle]::Bold)
+$gbHealth.Controls.Add($script:lblHealthScore) | Out-Null
 $script:lblHealthFree = New-Object System.Windows.Forms.Label
 $script:lblHealthFree.Text = 'C: free space: ...'; $script:lblHealthFree.AutoSize = $true; $script:lblHealthFree.Location = New-Object System.Drawing.Point(12, 24)
 $gbHealth.Controls.Add($script:lblHealthFree) | Out-Null
@@ -554,6 +560,9 @@ $btnUtilKeepNewest = New-Object System.Windows.Forms.Button; $btnUtilKeepNewest.
 $btnUtilDelete = New-Object System.Windows.Forms.Button; $btnUtilDelete.Text = 'Send selected to Recycle Bin'; $btnUtilDelete.Size = New-Object System.Drawing.Size(228,32); $btnUtilDelete.Location = New-Object System.Drawing.Point(234, 358)
 $btnUtilDelete.BackColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $btnUtilDelete.ForeColor = [System.Drawing.Color]::White
 $btnUtilOpen = New-Object System.Windows.Forms.Button; $btnUtilOpen.Text = 'Open file folder'; $btnUtilOpen.Size = New-Object System.Drawing.Size(150,30); $btnUtilOpen.Location = New-Object System.Drawing.Point(6, 396)
+$btnPerfBoost = New-Object System.Windows.Forms.Button; $btnPerfBoost.Text = 'Performance boost'; $btnPerfBoost.Size = New-Object System.Drawing.Size(150,30); $btnPerfBoost.Location = New-Object System.Drawing.Point(164, 396)
+$btnPerfRestore = New-Object System.Windows.Forms.Button; $btnPerfRestore.Text = 'Restore performance'; $btnPerfRestore.Size = New-Object System.Drawing.Size(150,30); $btnPerfRestore.Location = New-Object System.Drawing.Point(322, 396)
+$btnSysReport = New-Object System.Windows.Forms.Button; $btnSysReport.Text = 'System report'; $btnSysReport.Size = New-Object System.Drawing.Size(150,30); $btnSysReport.Location = New-Object System.Drawing.Point(480, 396)
 $lblUtilHint = New-Object System.Windows.Forms.Label
 $lblUtilHint.Text = "Duplicates: click 'Keep newest' then 'Send selected to Recycle Bin' (safe - Recycle Bin only). Tip: double-click a file (or 'Open file folder') to jump to its folder. Scan your own data (e.g. Documents / Pictures)."
 $lblUtilHint.Location = New-Object System.Drawing.Point(6, 428); $lblUtilHint.Size = New-Object System.Drawing.Size(850, 42); $lblUtilHint.ForeColor = [System.Drawing.Color]::FromArgb(150,110,0)
@@ -565,7 +574,7 @@ $script:lblWork.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $scri
 $script:prgWork = New-Object System.Windows.Forms.ProgressBar
 $script:prgWork.Location = New-Object System.Drawing.Point(6, 494); $script:prgWork.Size = New-Object System.Drawing.Size(850, 16)
 $script:prgWork.Style = 'Marquee'; $script:prgWork.MarqueeAnimationSpeed = 25; $script:prgWork.Visible = $false
-$tabUtil.Controls.Add($gbUtil) | Out-Null; $tabUtil.Controls.Add($script:dgUtil) | Out-Null; $tabUtil.Controls.Add($btnUtilKeepNewest) | Out-Null; $tabUtil.Controls.Add($btnUtilDelete) | Out-Null; $tabUtil.Controls.Add($btnUtilOpen) | Out-Null; $tabUtil.Controls.Add($lblUtilHint) | Out-Null; $tabUtil.Controls.Add($script:lblWork) | Out-Null; $tabUtil.Controls.Add($script:prgWork) | Out-Null
+$tabUtil.Controls.Add($gbUtil) | Out-Null; $tabUtil.Controls.Add($script:dgUtil) | Out-Null; $tabUtil.Controls.Add($btnUtilKeepNewest) | Out-Null; $tabUtil.Controls.Add($btnUtilDelete) | Out-Null; $tabUtil.Controls.Add($btnUtilOpen) | Out-Null; $tabUtil.Controls.Add($lblUtilHint) | Out-Null; $tabUtil.Controls.Add($script:lblWork) | Out-Null; $tabUtil.Controls.Add($script:prgWork) | Out-Null; $tabUtil.Controls.Add($btnPerfBoost) | Out-Null; $tabUtil.Controls.Add($btnPerfRestore) | Out-Null; $tabUtil.Controls.Add($btnSysReport) | Out-Null
 $script:dupMeta = @()
 $script:mainTabs.TabPages.Add($tabUtil) | Out-Null
 $script:utilMode = ''
@@ -990,6 +999,15 @@ function Update-EasyHealth {
     try { $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue; $script:lblHealthDefender.Text = 'Windows Defender: ' + $(if ($mp.RealTimeProtectionEnabled) { 'On' } else { 'Off' }) } catch { $script:lblHealthDefender.Text = 'Windows Defender: ?' }
     if (Test-UsbPresent) { $script:lblHealthUsb.Text = 'USB drive: present'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(0, 140, 0) }
     else { $script:lblHealthUsb.Text = 'USB drive: NOT detected - plug one in for backup'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(190, 30, 30) }
+    # PC Health score (0-100)
+    try {
+        $h = Get-PcHealthScore
+        $script:lblHealthScore.Text = "$($h.Score)/100"
+        if ($h.Score -ge 80) { $script:lblHealthScore.ForeColor = [System.Drawing.Color]::FromArgb(0, 140, 0) }
+        elseif ($h.Score -ge 50) { $script:lblHealthScore.ForeColor = [System.Drawing.Color]::FromArgb(200, 150, 0) }
+        else { $script:lblHealthScore.ForeColor = [System.Drawing.Color]::FromArgb(190, 30, 30) }
+        $script:healthRec = $h.Recommendations
+    } catch { $script:lblHealthScore.Text = '...' }
 }
 
 # Banner "Back up now" button (Advanced tab)
@@ -1213,7 +1231,7 @@ function Set-UtilsGrid {
 # then call OnDone with the result on the UI thread.
 # Show a clear "working" indicator, run a task, then hide it.
 function Show-Working([string]$Text) {
-    $script:utilButtons = @($btnUtilDup,$btnUtilDisk,$btnUtilLarge,$btnUtilProg,$btnUtilStartup,$btnUtilShort,$btnUtilDrive,$btnUtilNet,$btnUtilHealth,$btnUtilKeepNewest,$btnUtilDelete,$btnUtilOpen)
+    $script:utilButtons = @($btnUtilDup,$btnUtilDisk,$btnUtilLarge,$btnUtilProg,$btnUtilStartup,$btnUtilShort,$btnUtilDrive,$btnUtilNet,$btnUtilHealth,$btnUtilKeepNewest,$btnUtilDelete,$btnUtilOpen,$btnPerfBoost,$btnPerfRestore,$btnSysReport)
     $script:lblWork.Text = $Text; $script:lblWork.Visible = $true
     $script:prgWork.Visible = $true
     foreach ($b in $script:utilButtons) { $b.Enabled = $false }
@@ -1429,6 +1447,25 @@ $btnUtilOpen.add_Click({
     $done = $false
     foreach ($row in $script:dgUtil.SelectedRows) { if ($row.Cells['Path'].Value) { Open-InExplorer ([string]$row.Cells['Path'].Value); $done = $true; break } }
     if (-not $done) { Show-Message "No row is selected.`nClick on a file row first, then click 'Open file folder'." 'Open folder' Warn }
+})
+$btnPerfBoost.add_Click({
+    if (-not (Show-YesNo "Performance boost will switch to the High Performance power plan, turn off Game DVR, and use performance visual effects.`n`nIt is safe and reversible ('Restore performance').`n`nContinue?" 'Performance boost' Question)) { return }
+    Start-BackgroundScan -WorkingText 'Applying performance boost - please wait...' -Action { Invoke-PerformanceBoost } -OnDone { Show-Message "Performance boost applied.`nYour PC is set for better performance.`nYou can revert anytime with 'Restore performance'." 'Performance boost' Info }
+})
+$btnPerfRestore.add_Click({
+    if (-not (Show-YesNo "Restore the performance settings back to Windows defaults?`n`nContinue?" 'Restore performance' Question)) { return }
+    Start-BackgroundScan -WorkingText 'Restoring performance settings - please wait...' -Action { Invoke-PerformanceRestore } -OnDone { Show-Message "Performance settings restored to Windows defaults." 'Restore performance' Info }
+})
+$btnSysReport.add_Click({
+    Start-BackgroundScan -WorkingText 'Building system report - please wait...' -Action {
+        $script:sysReport = ((Get-SystemReport) -join [Environment]::NewLine)
+    } -OnDone {
+        $out = $null
+        $usbBase = Get-BackupBase
+        if ($usbBase) { $out = Join-Path $usbBase 'SystemReport.txt'; try { $script:sysReport | Set-Content $out -Encoding UTF8 } catch { $out = $null } }
+        if ($out -and (Test-Path $out)) { Show-Message ("System report saved to:`n$out") 'System report' Info }
+        else { Show-Message $script:sysReport 'System report' Info }
+    }
 })
 
 # Refresh the Easy health card whenever the Easy tab is shown
