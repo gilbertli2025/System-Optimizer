@@ -108,7 +108,9 @@ $script:Changelog = @(
         'Broken Shortcuts finder: remove dead shortcuts (Recycle Bin safe)',
         'Drive Health: check your disk temperature / wear / status',
         'Network Repair: flush DNS and reset Winsock',
-        'System Health Check: a read-only summary + tips' ) },
+        'System Health Check: a read-only summary + tips',
+        'Progress bar + working-stage shown during One-Click Optimize',
+        'USB safety: shows USB status + refuses One-Click without a USB drive' ) },
     @{ V='v1.6.0'; D='2026-08-21'; N=@(
         '3 tabs: Easy, Advanced, Utilities',
         'Back up your personal folders (Documents, Pictures, Music, Videos, Downloads, Desktop) to this USB',
@@ -220,10 +222,21 @@ $script:btnEasyOptimize.ForeColor = [System.Drawing.Color]::White
 $script:btnEasyOptimize.Font = New-Object System.Drawing.Font('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
 $script:easyPanel.Controls.Add($script:btnEasyOptimize) | Out-Null
 
+# Progress + stage indicator for One-Click Optimize
+$script:lblEasyStage = New-Object System.Windows.Forms.Label
+$script:lblEasyStage.Text = 'Ready'
+$script:lblEasyStage.AutoSize = $true; $script:lblEasyStage.Location = New-Object System.Drawing.Point(0, 176)
+$script:lblEasyStage.ForeColor = [System.Drawing.Color]::FromArgb(0, 102, 204); $script:lblEasyStage.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$script:easyPanel.Controls.Add($script:lblEasyStage) | Out-Null
+$script:prgEasy = New-Object System.Windows.Forms.ProgressBar
+$script:prgEasy.Location = New-Object System.Drawing.Point(0, 196); $script:prgEasy.Size = New-Object System.Drawing.Size(880, 18)
+$script:prgEasy.Minimum = 0; $script:prgEasy.Maximum = 100; $script:prgEasy.Style = 'Continuous'
+$script:easyPanel.Controls.Add($script:prgEasy) | Out-Null
+
 # What One-Click will apply (professional - shows the actual items)
 $gbEasyItems = New-Object System.Windows.Forms.GroupBox
 $gbEasyItems.Text = 'What One-Click Optimize will apply'
-$gbEasyItems.Location = New-Object System.Drawing.Point(0, 188); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 152)
+$gbEasyItems.Location = New-Object System.Drawing.Point(0, 220); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 152)
 $script:easyPanel.Controls.Add($gbEasyItems) | Out-Null
 $script:txtEasyItems = New-Object System.Windows.Forms.TextBox
 $script:txtEasyItems.Multiline = $true; $script:txtEasyItems.ReadOnly = $true; $script:txtEasyItems.ScrollBars = 'Vertical'
@@ -240,7 +253,7 @@ $gbEasyItems.Controls.Add($lblEasySafe) | Out-Null
 # Restore button
 $script:btnEasyRestore = New-Object System.Windows.Forms.Button
 $script:btnEasyRestore.Text = 'Restore my files & settings'
-$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 350)
+$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 380)
 $script:easyPanel.Controls.Add($script:btnEasyRestore) | Out-Null
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -930,6 +943,13 @@ function Update-EasyItems {
     if ($script:txtEasyItems) { $script:txtEasyItems.Text = ($lines -join [Environment]::NewLine) }
 }
 
+# Update the Easy progress bar + stage label (and repaint so it shows).
+function Set-EasyProgress([int]$Pct, [string]$Stage) {
+    if ($script:prgEasy) { $script:prgEasy.Value = [math]::Min(100, [math]::Max(0, $Pct)) }
+    if ($script:lblEasyStage) { $script:lblEasyStage.Text = $Stage }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
 function Update-EasyHealth {
     try { $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"; $script:lblHealthFree.Text = "C: free space: $([math]::Round($c.FreeSpace/1GB,1)) GB" } catch { $script:lblHealthFree.Text = 'C: free space: ?' }
     try {
@@ -962,22 +982,34 @@ $script:btnEasyOptimize.add_Click({
     }
     if (-not (Show-YesNo "One-Click Optimize will:`n`n  1. Back up your settings & files to this USB`n  2. Create a restore point (so you can undo)`n  3. Disable safe background services (telemetry, Xbox, Fax, etc.)`n  4. Turn on recommended security (Defender, firewall, screen lock)`n  5. Do safe cleanup`n`nIt will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only.`n`nContinue?" 'One-Click Optimize' Question)) { return }
     try {
+        $script:btnEasyOptimize.Enabled = $false
+        Set-EasyProgress 2 'Starting - back up your settings & files first...'
         Write-Log '===== EASY ONE-CLICK OPTIMIZE ====='
+        Set-EasyProgress 5 'Backing up your settings...'
         Backup-UserSettings
+        Set-EasyProgress 25 'Backing up your folders...'
         Backup-UserFolders | Out-Null
+        Set-EasyProgress 45 'Creating a restore point...'
         try { Checkpoint-Computer -Description 'System Optimizer Easy - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null; Write-Log 'Restore point created.' } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
         $svcIds   = @($script:svcChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
         $secIds   = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
         $maintIds = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
+        Set-EasyProgress 60 'Disabling safe services...'
         if ($svcIds.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svcIds }
-        foreach ($id in $secIds)   { Apply-SecurityItem -Id $id }
-        foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id }
+        Set-EasyProgress 75 'Applying security...'
+        $si = 0; foreach ($id in $secIds) { Apply-SecurityItem -Id $id; $si++; Set-EasyProgress (75 + ($si * 10)) ("Applying security: " + $si + "/" + $secIds.Count) }
+        Set-EasyProgress 95 'Running maintenance...'
+        $mi = 0; foreach ($id in $maintIds) { Invoke-MaintenanceItem -Id $id; $mi++; Set-EasyProgress (95 + ($mi * 5)) ("Running maintenance: " + $mi + "/" + $maintIds.Count) }
         Save-LastRun -services $svcIds -security $secIds -maint $maintIds
-        Update-EasyHealth
+        Set-EasyProgress 100 'Done'
+Update-EasyHealth
         Update-EasyItems
+        $script:btnEasyOptimize.Enabled = $true
+        Set-EasyProgress 100 'Done'
 Write-Log '===== EASY OPTIMIZE DONE ====='
 Show-Message ("Done! Your PC was optimized safely.`n`n  - " + $svcIds.Count + " safe service(s) disabled`n  - " + $secIds.Count + " security item(s) applied`n  - " + $maintIds.Count + " maintenance item(s) done`n`nDetails are in the log below. A restart is recommended so everything takes effect.`n`nClick OK to continue.") 'Finished' Info
     } catch {
+        $script:btnEasyOptimize.Enabled = $true
         Write-Log "ERROR: $($_.Exception.Message)"
         Show-Message ("Could not finish: " + $_.Exception.Message) 'Error'
     }
