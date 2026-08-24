@@ -154,6 +154,7 @@ function Remove-ToRecycleBin {
     param([string[]]$Paths)
     $n = 0
     foreach ($p in $Paths) {
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
         if (Test-Path -LiteralPath $p) {
             try {
                 $item = Get-Item -LiteralPath $p

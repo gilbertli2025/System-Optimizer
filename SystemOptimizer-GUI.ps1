@@ -1192,7 +1192,7 @@ $btnUtilBrowse.add_Click({
 })
 $btnUtilDelete.add_Click({
     if ($script:utilMode -eq 'disk') { Show-Message 'Disk analyzer is read-only - nothing to delete here.' 'Utilities' Warn; return }
-    $paths = @(); foreach ($row in $script:dgUtil.SelectedRows) { if ($row.Cells['Path'].Value) { $paths += [string]$row.Cells['Path'].Value } }
+    $paths = @(); foreach ($row in $script:dgUtil.SelectedRows) { $v = $row.Cells['Path'].Value; if ($v -and -not [string]::IsNullOrWhiteSpace([string]$v)) { $paths += [string]$v } }
     if ($paths.Count -eq 0) { Show-Message "No row is selected.`n`nClick on a duplicate row first (so it is highlighted), then click 'Send selected to Recycle Bin' again." 'Delete' Warn; return }
     if (-not (Show-YesNo ("Send " + $paths.Count + " item(s) to the Recycle Bin?`nYou can undo this from the Recycle Bin.") 'Confirm' Warn)) { return }
     $n = Remove-ToRecycleBin -Paths $paths
