@@ -233,27 +233,34 @@ $script:prgEasy.Location = New-Object System.Drawing.Point(0, 196); $script:prgE
 $script:prgEasy.Minimum = 0; $script:prgEasy.Maximum = 100; $script:prgEasy.Style = 'Continuous'
 $script:easyPanel.Controls.Add($script:prgEasy) | Out-Null
 
-# What One-Click will apply (professional - shows the actual items)
+# What One-Click will apply (interactive - user can untick anything)
 $gbEasyItems = New-Object System.Windows.Forms.GroupBox
-$gbEasyItems.Text = 'What One-Click Optimize will apply'
-$gbEasyItems.Location = New-Object System.Drawing.Point(0, 220); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 152)
+$gbEasyItems.Text = 'What One-Click Optimize will apply  (untick anything you do NOT want)'
+$gbEasyItems.Location = New-Object System.Drawing.Point(0, 220); $gbEasyItems.Size = New-Object System.Drawing.Size(880, 160)
 $script:easyPanel.Controls.Add($gbEasyItems) | Out-Null
-$script:txtEasyItems = New-Object System.Windows.Forms.TextBox
-$script:txtEasyItems.Multiline = $true; $script:txtEasyItems.ReadOnly = $true; $script:txtEasyItems.ScrollBars = 'Vertical'
-$script:txtEasyItems.BackColor = [System.Drawing.Color]::White; $script:txtEasyItems.Font = New-Object System.Drawing.Font('Consolas', 9)
-$script:txtEasyItems.Location = New-Object System.Drawing.Point(8, 22); $script:txtEasyItems.Size = New-Object System.Drawing.Size(864, 94)
-$gbEasyItems.Controls.Add($script:txtEasyItems) | Out-Null
+$lblEasyPick = New-Object System.Windows.Forms.Label
+$lblEasyPick.Text = 'Recommended items are already ticked - untick any you do not want:'
+$lblEasyPick.AutoSize = $true; $lblEasyPick.Location = New-Object System.Drawing.Point(8, 16)
+$lblEasyPick.ForeColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+$gbEasyItems.Controls.Add($lblEasyPick) | Out-Null
+$script:clbEasy = New-Object System.Windows.Forms.CheckedListBox
+$script:clbEasy.Location = New-Object System.Drawing.Point(8, 38); $script:clbEasy.Size = New-Object System.Drawing.Size(864, 112)
+$script:clbEasy.CheckOnClick = $true; $script:clbEasy.BackColor = [System.Drawing.Color]::White
+$script:clbEasy.add_ItemCheck({ param($s, $e)
+    if ($script:easyItemsList -and $e.Index -lt $script:easyItemsList.Count -and $script:easyItemsList[$e.Index].Category -eq 'header') { $e.NewValue = 'Unchecked' }
+})
+$gbEasyItems.Controls.Add($script:clbEasy) | Out-Null
 $lblEasySafe = New-Object System.Windows.Forms.Label
 $lblEasySafe.Text = "It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only."
-$lblEasySafe.AutoSize = $false; $lblEasySafe.Size = New-Object System.Drawing.Size(860, 30)
-$lblEasySafe.Location = New-Object System.Drawing.Point(8, 124)
+$lblEasySafe.AutoSize = $false; $lblEasySafe.Size = New-Object System.Drawing.Size(880, 18)
+$lblEasySafe.Location = New-Object System.Drawing.Point(0, 386)
 $lblEasySafe.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
-$gbEasyItems.Controls.Add($lblEasySafe) | Out-Null
+$script:easyPanel.Controls.Add($lblEasySafe) | Out-Null
 
 # Restore button
 $script:btnEasyRestore = New-Object System.Windows.Forms.Button
 $script:btnEasyRestore.Text = 'Restore my files & settings'
-$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 380)
+$script:btnEasyRestore.Size = New-Object System.Drawing.Size(240, 40); $script:btnEasyRestore.Location = New-Object System.Drawing.Point(0, 408)
 $script:easyPanel.Controls.Add($script:btnEasyRestore) | Out-Null
 
 $tabs = New-Object System.Windows.Forms.TabControl
@@ -931,16 +938,32 @@ if ($SmokeTest) {
 # Items One-Click Optimize never touches (Advanced mode only).
 $script:EasyRisky = @('bitlocker','officewsh','lockout','recyclebin','cleantemp','browscache')
 
-# List the exact services/security/maintenance that One-Click will apply.
+# Build the interactive list of items One-Click will apply (user can untick).
 function Update-EasyItems {
-    $lines = New-Object System.Collections.Generic.List[string]
-    $svc = @($script:svcChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
-    if ($svc.Count -gt 0) { $lines.Add('Services to disable:'); foreach ($s in $svc) { $lines.Add("   - $s") } }
-    $sec = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
-    if ($sec.Count -gt 0) { $lines.Add('Security to apply:'); foreach ($s in $sec) { $lines.Add("   - $s") } }
-    $mt  = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Text })
-    if ($mt.Count -gt 0) { $lines.Add('Maintenance:'); foreach ($s in $mt) { $lines.Add("   - $s") } }
-    if ($script:txtEasyItems) { $script:txtEasyItems.Text = ($lines -join [Environment]::NewLine) }
+    if (-not $script:clbEasy) { return }
+    $script:clbEasy.Items.Clear()
+    $script:easyItemsList = New-Object System.Collections.Generic.List[object]
+    $script:clbEasy.BeginUpdate()
+    try {
+        $svc = @($script:svcChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) })
+        if ($svc.Count -gt 0) {
+            $script:clbEasy.Items.Add('-- SERVICES TO DISABLE --', $false) | Out-Null
+            $script:easyItemsList.Add([pscustomobject]@{ Id=$null; Category='header'; Text='SERVICES' })
+            foreach ($c in $svc) { $script:clbEasy.Items.Add($c.Text, $true) | Out-Null; $script:easyItemsList.Add([pscustomobject]@{ Id=$c.Tag; Category='svc'; Text=$c.Text }) }
+        }
+        $sec = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) })
+        if ($sec.Count -gt 0) {
+            $script:clbEasy.Items.Add('-- SECURITY TO APPLY --', $false) | Out-Null
+            $script:easyItemsList.Add([pscustomobject]@{ Id=$null; Category='header'; Text='SECURITY' })
+            foreach ($c in $sec) { $script:clbEasy.Items.Add($c.Text, $true) | Out-Null; $script:easyItemsList.Add([pscustomobject]@{ Id=$c.Tag; Category='sec'; Text=$c.Text }) }
+        }
+        $mt = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) })
+        if ($mt.Count -gt 0) {
+            $script:clbEasy.Items.Add('-- MAINTENANCE --', $false) | Out-Null
+            $script:easyItemsList.Add([pscustomobject]@{ Id=$null; Category='header'; Text='MAINTENANCE' })
+            foreach ($c in $mt) { $script:clbEasy.Items.Add($c.Text, $true) | Out-Null; $script:easyItemsList.Add([pscustomobject]@{ Id=$c.Tag; Category='maint'; Text=$c.Text }) }
+        }
+    } finally { $script:clbEasy.EndUpdate() }
 }
 
 # Update the Easy progress bar + stage label (and repaint so it shows).
@@ -1003,9 +1026,13 @@ $script:btnEasyOptimize.add_Click({
         Backup-UserFolders | Out-Null
         Set-EasyProgress 45 'Creating a restore point...'
         try { Checkpoint-Computer -Description 'System Optimizer Easy - before changes' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop | Out-Null; Write-Log 'Restore point created.' } catch { Write-Log "WARN could not create restore point: $($_.Exception.Message)" }
-        $svcIds   = @($script:svcChecks   | Where-Object { $_.Checked } | ForEach-Object { $_.Tag })
-        $secIds   = @($script:secChecks   | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
-        $maintIds = @($script:maintChecks | Where-Object { $_.Checked -and ($_.Tag -notin $script:EasyRisky) } | ForEach-Object { $_.Tag })
+        $checked = @()
+        for ($i = 0; $i -lt $script:clbEasy.Items.Count; $i++) {
+            if ($script:clbEasy.GetItemChecked($i) -and $script:easyItemsList[$i].Id) { $checked += $script:easyItemsList[$i] }
+        }
+        $svcIds   = @($checked | Where-Object { $_.Category -eq 'svc' } | ForEach-Object { $_.Id })
+        $secIds   = @($checked | Where-Object { $_.Category -eq 'sec' } | ForEach-Object { $_.Id })
+        $maintIds = @($checked | Where-Object { $_.Category -eq 'maint' } | ForEach-Object { $_.Id })
         Set-EasyProgress 60 'Disabling safe services...'
         if ($svcIds.Count -gt 0) { Backup-ServicesSnapshot; Disable-Services -Names $svcIds }
         Set-EasyProgress 75 'Applying security...'
