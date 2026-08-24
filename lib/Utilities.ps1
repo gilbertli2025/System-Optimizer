@@ -101,6 +101,53 @@ function Find-BrokenShortcuts {
     return ,$broken
 }
 
+# Drive health (SMART) - read-only report: status, temp, wear, size.
+function Get-DriveHealth {
+    $rows = New-Object System.Collections.Generic.List[object]
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $rel = $null; try { $rel = Get-StorageReliabilityCounter -PhysicalDisk $d -ErrorAction Stop } catch { }
+            $temp = if ($rel -and $rel.Temperature) { $rel.Temperature } else { $null }
+            $wear = if ($rel -and $null -ne $rel.Wear) { [math]::Round($rel.Wear, 0) } else { $null }
+            $rows.Add([pscustomobject]@{
+                Name = $d.FriendlyName
+                Status = [string]$d.HealthStatus
+                SizeGB = [math]::Round($d.Size/1GB, 0)
+                TempC = $temp
+                WearPct = $wear
+            })
+        }
+    } catch { Write-Log "Drive health unavailable: $($_.Exception.Message)" }
+    return ,$rows
+}
+
+# Network repair - DNS flush + Winsock reset (safe, needs admin). Returns output.
+function Invoke-NetworkRepair {
+    $out = New-Object System.Collections.Generic.List[string]
+    $out.Add('--- ipconfig /flushdns ---')
+    $out.Add((ipconfig.exe /flushdns 2>&1 | Out-String).Trim())
+    $out.Add('--- netsh winsock reset ---')
+    $out.Add((netsh.exe winsock reset 2>&1 | Out-String).Trim())
+    return ,$out
+}
+
+# Read-only system health summary + recommendations.
+function Get-SystemHealthReport {
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('SYSTEM HEALTH CHECK')
+    try { $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"; $free = [math]::Round($c.FreeSpace/1GB,1); $lines.Add(('Disk C: free space: ' + $free + ' GB')) } catch { $lines.Add('Disk C: ?') }
+    try { $os = Get-CimInstance Win32_OperatingSystem; $up = [math]::Round((New-TimeSpan -Start $os.LastBootUpTime -End (Get-Date)).TotalDays,1); $lines.Add('Uptime: ' + $up + ' day(s)') } catch { }
+    try { $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue; $lines.Add('Windows Defender: ' + $(if ($mp.RealTimeProtectionEnabled) { 'On' } else { 'Off' })) } catch { }
+    try { $st = Get-StartupEntries; $lines.Add('Startup items: ' + $st.Count) } catch { }
+    $lines.Add('')
+    $lines.Add('Suggestions:')
+    $lines.Add('  - Keep Windows and your apps updated')
+    $lines.Add('  - Back up your settings & files to this USB regularly')
+    $lines.Add('  - Keep this USB drive safe (it holds your backup + recovery key)')
+    return ,$lines
+}
+
 # Delete to Recycle Bin (safe). Returns count deleted.
 function Remove-ToRecycleBin {
     [CmdletBinding()]

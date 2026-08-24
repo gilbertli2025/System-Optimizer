@@ -92,9 +92,15 @@ $pageAdv.Padding = New-Object System.Windows.Forms.Padding(6)
 $script:mainTabs.TabPages.Add($pageAdv) | Out-Null
 
 # --- Version / What's New tab ---
-$script:AppVersion = '1.6.0'
+$script:AppVersion = '1.7.0'
 $script:AppBuildDate = '2026-08-21'
 $script:Changelog = @(
+    @{ V='v1.7.0'; D='2026-08-21'; N=@(
+        'Startup Manager: see what runs at boot, safely enable/disable it',
+        'Broken Shortcuts finder: remove dead shortcuts (Recycle Bin safe)',
+        'Drive Health: check your disk temperature / wear / status',
+        'Network Repair: flush DNS and reset Winsock',
+        'System Health Check: a read-only summary + tips' ) },
     @{ V='v1.6.0'; D='2026-08-21'; N=@(
         '3 tabs: Easy, Advanced, Utilities',
         'Back up your personal folders (Documents, Pictures, Music, Videos, Downloads, Desktop) to this USB',
@@ -483,6 +489,9 @@ $btnUtilLarge = New-Object System.Windows.Forms.Button; $btnUtilLarge.Text = 'La
 $btnUtilProg  = New-Object System.Windows.Forms.Button; $btnUtilProg.Text  = 'Export programs list'; $btnUtilProg.Size = New-Object System.Drawing.Size(195,32); $btnUtilProg.Location = New-Object System.Drawing.Point(416, 24)
 $btnUtilStartup = New-Object System.Windows.Forms.Button; $btnUtilStartup.Text = 'Startup Manager'; $btnUtilStartup.Size = New-Object System.Drawing.Size(140, 26); $btnUtilStartup.Location = New-Object System.Drawing.Point(12, 92)
 $btnUtilShort = New-Object System.Windows.Forms.Button; $btnUtilShort.Text = 'Broken shortcuts'; $btnUtilShort.Size = New-Object System.Drawing.Size(140, 26); $btnUtilShort.Location = New-Object System.Drawing.Point(160, 92)
+$btnUtilDrive = New-Object System.Windows.Forms.Button; $btnUtilDrive.Text = 'Drive health'; $btnUtilDrive.Size = New-Object System.Drawing.Size(110, 26); $btnUtilDrive.Location = New-Object System.Drawing.Point(308, 92)
+$btnUtilNet   = New-Object System.Windows.Forms.Button; $btnUtilNet.Text   = 'Network repair'; $btnUtilNet.Size   = New-Object System.Drawing.Size(130, 26); $btnUtilNet.Location   = New-Object System.Drawing.Point(426, 92)
+$btnUtilHealth= New-Object System.Windows.Forms.Button; $btnUtilHealth.Text= 'Health check';   $btnUtilHealth.Size  = New-Object System.Drawing.Size(110, 26); $btnUtilHealth.Location  = New-Object System.Drawing.Point(564, 92)
 
 $lblUtilPath = New-Object System.Windows.Forms.Label; $lblUtilPath.Text = 'Folder/drive to scan:'; $lblUtilPath.AutoSize = $true; $lblUtilPath.Location = New-Object System.Drawing.Point(12, 66)
 $script:txtUtilPath = New-Object System.Windows.Forms.TextBox; $script:txtUtilPath.Text = $env:USERPROFILE; $script:txtUtilPath.Size = New-Object System.Drawing.Size(400,22); $script:txtUtilPath.Location = New-Object System.Drawing.Point(140, 64)
@@ -492,6 +501,9 @@ $gbUtil.Controls.Add($btnUtilDup) | Out-Null; $gbUtil.Controls.Add($btnUtilDisk)
 $gbUtil.Controls.Add($lblUtilPath) | Out-Null; $gbUtil.Controls.Add($script:txtUtilPath) | Out-Null; $gbUtil.Controls.Add($btnUtilBrowse) | Out-Null
 $gbUtil.Controls.Add($btnUtilStartup) | Out-Null
 $gbUtil.Controls.Add($btnUtilShort) | Out-Null
+$gbUtil.Controls.Add($btnUtilDrive) | Out-Null
+$gbUtil.Controls.Add($btnUtilNet) | Out-Null
+$gbUtil.Controls.Add($btnUtilHealth) | Out-Null
 
 $script:dgUtil = New-Object System.Windows.Forms.DataGridView
 $script:dgUtil.Location = New-Object System.Drawing.Point(6, 132); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
@@ -1173,6 +1185,28 @@ $btnUtilShort.add_Click({
         Write-Log ("Broken shortcuts: " + $rows.Count)
         if ($rows.Count -eq 0) { Show-Message 'No broken shortcuts found (your shortcuts all point to existing files).' 'Broken shortcuts' Info }
     } catch { Write-Log "ERROR: $($_.Exception.Message)"; Show-Message ("Scan could not finish: " + $_.Exception.Message) 'Error' }
+})
+$btnUtilDrive.add_Click({
+    $script:utilMode = 'drive'; Write-Log 'Reading drive health (SMART)...'
+    try {
+        $rows = @(Get-DriveHealth | ForEach-Object { ,@('Drive', $_.Name, $_.Status, "$($_.SizeGB) GB", $(if($null -ne $_.TempC){"$($_.TempC) C"}else{'-'}), $(if($null -ne $_.WearPct){"$($_.WearPct) %"}else{'-'})) })
+        Set-UtilsGrid $rows @('Type','Name','Status','Size','Temp','Wear')
+        Write-Log ("Drive health: " + $rows.Count + " disk(s)")
+    } catch { Write-Log "ERROR: $($_.Exception.Message)"; Show-Message ("Could not read drive health: " + $_.Exception.Message) 'Error' }
+})
+$btnUtilNet.add_Click({
+    if (-not (Show-YesNo "Network repair will flush DNS and reset Winsock (fixes many connection issues).`nYour network may briefly drop and a restart may be needed.`n`nContinue?" 'Network repair' Question)) { return }
+    Write-Log 'Running network repair...'
+    $out = Invoke-NetworkRepair
+    foreach ($l in $out) { Write-Log $l }
+    Show-Message "Network repair done.`n`nIf a restart is needed, please restart to finish.`n`nClick OK to continue." 'Network repair' Info
+})
+$btnUtilHealth.add_Click({
+    Write-Log 'Running system health check...'
+    $report = Get-SystemHealthReport
+    $txt = $report -join [Environment]::NewLine
+    Write-Log ('Health check: ' + $txt)
+    Show-Message $txt 'Health check' Info
 })
 # Double-click a result row to jump to its folder
 $script:dgUtil.add_CellDoubleClick({
