@@ -61,6 +61,14 @@ if (-not (Test-Admin) -and -not $NoElevate) {
     Restart-Admin
 }
 
+# If launched directly (not via the .cmd launcher), make sure this tool's own
+# signing certificate is trusted, so the signed exe runs even with Smart App
+# Control on. (Safe: it is this tool's own cert; fails silently if not admin.)
+$soCert = Join-Path $ScriptRoot 'WSO-Trust.cer'
+if (Test-Path -LiteralPath $soCert) {
+    try { & certutil.exe -addstore -f Root $soCert 2>&1 | Out-Null } catch { }
+}
+
 # --------------------------------------------------------------------------
 # Form
 # --------------------------------------------------------------------------
