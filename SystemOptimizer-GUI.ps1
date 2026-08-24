@@ -220,8 +220,9 @@ $script:txtEasyItems.BackColor = [System.Drawing.Color]::White; $script:txtEasyI
 $script:txtEasyItems.Location = New-Object System.Drawing.Point(8, 22); $script:txtEasyItems.Size = New-Object System.Drawing.Size(864, 94)
 $gbEasyItems.Controls.Add($script:txtEasyItems) | Out-Null
 $lblEasySafe = New-Object System.Windows.Forms.Label
-$lblEasySafe.Text = "It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only. Nothing here can harm your PC."
-$lblEasySafe.AutoSize = $true; $lblEasySafe.Location = New-Object System.Drawing.Point(8, 124)
+$lblEasySafe.Text = "It will NOT enable BitLocker, disable Office macros, or set account lockout - those are Advanced mode only."
+$lblEasySafe.AutoSize = $false; $lblEasySafe.Size = New-Object System.Drawing.Size(860, 30)
+$lblEasySafe.Location = New-Object System.Drawing.Point(8, 124)
 $lblEasySafe.ForeColor = [System.Drawing.Color]::FromArgb(150, 110, 0)
 $gbEasyItems.Controls.Add($lblEasySafe) | Out-Null
 
