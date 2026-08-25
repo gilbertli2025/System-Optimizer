@@ -177,6 +177,13 @@ $lblVerSafe.ForeColor = [System.Drawing.Color]::FromArgb(180, 60, 0)
 $lblVerSafe.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $pageVer.Controls.Add($lblVerSafe) | Out-Null
 
+$lblVerCredit = New-Object System.Windows.Forms.Label
+$lblVerCredit.Text = 'Developed with DeepSeek V4'
+$lblVerCredit.Location = New-Object System.Drawing.Point(8, 516); $lblVerCredit.AutoSize = $true
+$lblVerCredit.ForeColor = [System.Drawing.Color]::FromArgb(110, 110, 110)
+$lblVerCredit.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$pageVer.Controls.Add($lblVerCredit) | Out-Null
+
 # Native, proportionate tabs (Windows-themed) - they auto-size to the text
 $script:mainTabs.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
 foreach ($tp in $script:mainTabs.TabPages) { $tp.BackColor = [System.Drawing.Color]::White }
