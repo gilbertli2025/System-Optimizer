@@ -283,6 +283,11 @@ entry point. The common ways in:
   - **Malwarebytes Free** — very effective second-opinion scanner.
   - **Microsoft Safety Scanner (MSERT)** — on-demand, single-use.
   - **HitmanPro / Kaspersky Virus Removal Tool** — quick second opinions.
+- **If you have a third-party antivirus (e.g., Bitdefender, Norton, Kaspersky):**
+  open that antivirus's own app and run a **full scan** from there. This app
+  (System Optimizer) does **not** run antivirus scans — it only tunes, hardens
+  and cleans up. Your antivirus does the scanning, and when another antivirus
+  is the primary one, Windows Defender hands over to it automatically.
 - **Signs something may be wrong:**
   - PC suddenly very slow; high CPU/disk with nothing open
   - new toolbars/extensions, changed homepage, random pop-ups
