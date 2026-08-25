@@ -170,8 +170,8 @@ function Get-PcHealthScore {
         if ($up -gt 14) { $score -= 10; $recs.Add('PC has been on over 14 days - a restart can help.') }
     } catch { }
     try {
-        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
-        if (-not $mp.RealTimeProtectionEnabled) { $score -= 20; $recs.Add('Windows Defender is off - turn it on.') }
+        $avNames = Get-ActiveAntivirus
+        if ($avNames.Count -eq 0) { $score -= 20; $recs.Add('No active antivirus - turn on Windows Defender or your antivirus.') }
     } catch { }
     try {
         $st = Get-StartupEntries
@@ -182,6 +182,22 @@ function Get-PcHealthScore {
     return [pscustomobject]@{ Score = $score; Recommendations = @($recs) }
 }
 
+# Returns the names of antivirus products whose real-time protection is ON,
+# including third-party AV (Webroot, Norton, Bitdefender, OpenText, etc.) read
+# from Windows Security Center. Falls back to Windows Defender.
+function Get-ActiveAntivirus {
+    $names = New-Object System.Collections.Generic.List[string]
+    try {
+        $av = @(Get-CimInstance -Namespace root\SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue)
+        foreach ($p in $av) { if (($p.productState -band 0x1000) -ne 0) { $names.Add([string]$p.displayName) } }
+    } catch { }
+    if ($names.Count -eq 0) {
+        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        if ($mp -and $mp.RealTimeProtectionEnabled) { $names.Add('Windows Defender') }
+    }
+    return $names.ToArray()
+}
+
 # Full read-only health check with a per-item breakdown (score + reasons).
 # Used by the Health tab so users can compare the score before and after a mode.
 function Get-HealthCheck {
@@ -190,11 +206,9 @@ function Get-HealthCheck {
     $now = Get-Date
     $fmt = 'yyyy-MM-dd HH:mm'
     $rows.Add([pscustomobject]@{Name='Checked'; Status='OK'; Detail=$now.ToString($fmt)})
-    try {
-        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
-        if ($mp -and $mp.RealTimeProtectionEnabled) { $rows.Add([pscustomobject]@{Name='Windows Defender';Status='OK';Detail='Real-time protection is on'}) }
-        else { $score -= 20; $rows.Add([pscustomobject]@{Name='Windows Defender';Status='Fail';Detail='Real-time protection is OFF - turn it on in Windows Security'}) }
-    } catch { $rows.Add([pscustomobject]@{Name='Windows Defender';Status='?';Detail='could not be checked'}) }
+    $avNames = Get-ActiveAntivirus
+    if ($avNames.Count -ge 1) { $rows.Add([pscustomobject]@{Name='Antivirus';Status='OK';Detail=('Protection is on: ' + ($avNames -join ', '))}) }
+    else { $score -= 20; $rows.Add([pscustomobject]@{Name='Antivirus';Status='Fail';Detail='No active antivirus detected - turn on Windows Defender or your antivirus'}) }
     try {
         $profiles = @(Get-NetFirewallProfile -ErrorAction SilentlyContinue | Where-Object { $_.Enabled })
         if ($profiles.Count -ge 1) { $rows.Add([pscustomobject]@{Name='Windows Firewall';Status='OK';Detail='Firewall is on'}) }

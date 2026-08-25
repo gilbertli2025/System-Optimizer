@@ -1186,7 +1186,7 @@ function Update-EasyHealth {
             if ($ts) { $d = [math]::Round(((Get-Date) - $ts).TotalDays, 1); $script:lblHealthBackup.Text = "Last backup: $d day(s) ago" } else { $script:lblHealthBackup.Text = 'Last backup: unknown' }
         } else { $script:lblHealthBackup.Text = 'Last backup: none yet' }
     } catch { $script:lblHealthBackup.Text = 'Last backup: ?' }
-    try { $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue; $script:lblHealthDefender.Text = 'Windows Defender: ' + $(if ($mp.RealTimeProtectionEnabled) { 'On' } else { 'Off' }) } catch { $script:lblHealthDefender.Text = 'Windows Defender: ?' }
+    $avn = Get-ActiveAntivirus; $script:lblHealthDefender.Text = 'Antivirus: ' + $(if ($avn.Count -ge 1) { ($avn -join ', ') } else { 'none detected' })
     if (Test-UsbPresent) { $script:lblHealthUsb.Text = 'USB drive: present'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(0, 140, 0) }
     else { $script:lblHealthUsb.Text = 'USB drive: NOT detected - plug one in for backup'; $script:lblHealthUsb.ForeColor = [System.Drawing.Color]::FromArgb(190, 30, 30) }
     # PC Health score (0-100)
