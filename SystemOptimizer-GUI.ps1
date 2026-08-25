@@ -100,9 +100,16 @@ $pageAdv.Padding = New-Object System.Windows.Forms.Padding(6)
 $script:mainTabs.TabPages.Add($pageAdv) | Out-Null
 
 # --- Version / What's New tab ---
-$script:AppVersion = '1.7.0'
-$script:AppBuildDate = '2026-08-21'
+$script:AppVersion = '1.8.0'
+$script:AppBuildDate = '2026-08-25'
 $script:Changelog = @(
+    @{ V='v1.8.0'; D='2026-08-25'; N=@(
+        'Profile Repair: a full utility to list every user profile and its health',
+        'Guided safe workflow: Back up -> Create a new profile -> Restore -> Verify -> Remove old',
+        'Back up user data (or data + app settings) to your USB with robocopy',
+        'Restore backed-up files into a newly created profile (never NTUSER.DAT)',
+        'Fix a temporary profile (State 1 -> 0) with one click',
+        'Openable from Utilities tab; ships with its own step-by-step guide' ) },
     @{ V='v1.7.0'; D='2026-08-21'; N=@(
         'PERFORMANCE',
         '- PC Health Score (0-100) shown on the home screen: see at a glance how healthy your PC is',
@@ -622,6 +629,23 @@ $btnUtilNetwork  = New-Object System.Windows.Forms.Button; $btnUtilNetwork.Text 
 $btnUtilBattery  = New-Object System.Windows.Forms.Button; $btnUtilBattery.Text  = 'Battery report'; $btnUtilBattery.Size  = New-Object System.Drawing.Size(130, 26); $btnUtilBattery.Location  = New-Object System.Drawing.Point(288, 120)
 $btnUtilApps     = New-Object System.Windows.Forms.Button; $btnUtilApps.Text     = 'App updates';    $btnUtilApps.Size     = New-Object System.Drawing.Size(130, 26); $btnUtilApps.Location     = New-Object System.Drawing.Point(426, 120)
 $gbUtil.Controls.Add($btnUtilHardware) | Out-Null; $gbUtil.Controls.Add($btnUtilNetwork) | Out-Null; $gbUtil.Controls.Add($btnUtilBattery) | Out-Null; $gbUtil.Controls.Add($btnUtilApps) | Out-Null
+
+# v1.8: Profile Repair utility button
+$btnUtilProfile = New-Object System.Windows.Forms.Button; $btnUtilProfile.Text = 'Profile Repair'; $btnUtilProfile.Size = New-Object System.Drawing.Size(140,26); $btnUtilProfile.Location = New-Object System.Drawing.Point(564,120)
+$btnUtilProfile.BackColor = [System.Drawing.Color]::FromArgb(223,240,216)
+$btnUtilProfile.Add_Click({
+    $pr = Join-Path $ScriptRoot 'profile-repair\ProfileRepair-Utility.ps1'
+    if (-not (Test-Path -LiteralPath $pr)) {
+        [void][System.Windows.Forms.MessageBox]::Show("Profile Repair utility was not found:`n$pr", 'Profile Repair', 'OK', 'Warning')
+        return
+    }
+    try {
+        Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -STA -File `"$pr`""
+    } catch {
+        [void][System.Windows.Forms.MessageBox]::Show("Could not open Profile Repair.`n$($_.Exception.Message)", 'Profile Repair', 'OK', 'Warning')
+    }
+})
+$gbUtil.Controls.Add($btnUtilProfile) | Out-Null
 
 $lblUtilPath = New-Object System.Windows.Forms.Label; $lblUtilPath.Text = 'Folder/drive to scan:'; $lblUtilPath.AutoSize = $true; $lblUtilPath.Location = New-Object System.Drawing.Point(12, 66)
 $script:txtUtilPath = New-Object System.Windows.Forms.TextBox; $script:txtUtilPath.Text = $env:USERPROFILE; $script:txtUtilPath.Size = New-Object System.Drawing.Size(400,22); $script:txtUtilPath.Location = New-Object System.Drawing.Point(140, 64)

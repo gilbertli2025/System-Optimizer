@@ -65,6 +65,24 @@
                     Source="$(var.SourceDir)\lib\BackupRestore.ps1" />
             </Component>
           </Directory>
+          <Directory Id="ProfileRepairFolder" Name="profile-repair">
+            <Component Id="PrUtility" Guid="*" Win64="yes">
+              <File Id="PrUtility"
+                    Name="ProfileRepair-Utility.ps1"
+                    Source="$(var.SourceDir)\profile-repair\ProfileRepair-Utility.ps1"
+                    KeyPath="yes" />
+            </Component>
+            <Component Id="PrCmd" Guid="*" Win64="yes">
+              <File Id="PrCmd"
+                    Name="ProfileRepair.cmd"
+                    Source="$(var.SourceDir)\profile-repair\ProfileRepair.cmd" />
+            </Component>
+            <Component Id="PrGuide" Guid="*" Win64="yes">
+              <File Id="PrGuide"
+                    Name="UserProfile-Repair-Guide.txt"
+                    Source="$(var.SourceDir)\profile-repair\UserProfile-Repair-Guide.txt" />
+            </Component>
+          </Directory>
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
@@ -96,6 +114,9 @@
       <ComponentRef Id="LibRepair" />
       <ComponentRef Id="LibReview" />
       <ComponentRef Id="LibBackup" />
+      <ComponentRef Id="PrUtility" />
+      <ComponentRef Id="PrCmd" />
+      <ComponentRef Id="PrGuide" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
   </Product>
