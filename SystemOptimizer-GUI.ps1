@@ -660,7 +660,7 @@ $gbUtil.Controls.Add($btnUtilNet) | Out-Null
 $gbUtil.Controls.Add($btnUtilHealth) | Out-Null
 
 $script:dgUtil = New-Object System.Windows.Forms.DataGridView
-$script:dgUtil.Location = New-Object System.Drawing.Point(6, 162); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 220)
+$script:dgUtil.Location = New-Object System.Drawing.Point(6, 162); $script:dgUtil.Size = New-Object System.Drawing.Size(850, 190)
 $script:dgUtil.AllowUserToAddRows = $false; $script:dgUtil.ReadOnly = $true; $script:dgUtil.SelectionMode = 'FullRowSelect'; $script:dgUtil.AutoSizeColumnsMode = 'Fill'; $script:dgUtil.BackgroundColor = [System.Drawing.Color]::White
 
 $btnUtilKeepNewest = New-Object System.Windows.Forms.Button; $btnUtilKeepNewest.Text = 'Keep newest (auto-select older copies)'; $btnUtilKeepNewest.Size = New-Object System.Drawing.Size(222,32); $btnUtilKeepNewest.Location = New-Object System.Drawing.Point(6, 358)
@@ -1451,7 +1451,7 @@ $btnUtilBrowse.add_Click({
     if ($d.ShowDialog() -eq 'OK') { $script:txtUtilPath.Text = $d.SelectedPath }
 })
 $btnUtilDelete.add_Click({
-    if ($script:utilMode -eq 'disk') { Show-Message 'Disk analyzer is read-only - nothing to delete here.' 'Utilities' Warn; return }
+    if ($script:utilMode -notin @('dup','large','shortcut')) { Show-Message 'This list has nothing to delete. Run Duplicate finder or Large-file finder first, then select a row.' 'Utilities' Warn; return }
     $paths = @(); foreach ($row in $script:dgUtil.SelectedRows) { $v = $row.Cells['Path'].Value; if ($v -and -not [string]::IsNullOrWhiteSpace([string]$v)) { $paths += [string]$v } }
     if ($paths.Count -eq 0) { Show-Message "No row is selected.`n`nClick on a duplicate row first (so it is highlighted), then click 'Send selected to Recycle Bin' again." 'Delete' Warn; return }
     if (-not (Show-YesNo ("Send " + $paths.Count + " item(s) to the Recycle Bin?`nYou can undo this from the Recycle Bin.") 'Confirm' Warn)) { return }
@@ -1553,6 +1553,7 @@ $script:dgUtil.add_CellDoubleClick({
     }
 })
 $btnUtilOpen.add_Click({
+    if ($script:utilMode -notin @('dup','large','shortcut')) { Show-Message 'This list has no file path to open. Run Duplicate finder, Large-file finder, or Broken shortcuts first.' 'Utilities' Warn; return }
     $done = $false
     foreach ($row in $script:dgUtil.SelectedRows) { if ($row.Cells['Path'].Value) { Open-InExplorer ([string]$row.Cells['Path'].Value); $done = $true; break } }
     if (-not $done) { Show-Message "No row is selected.`nClick on a file row first, then click 'Open file folder'." 'Open folder' Warn }
