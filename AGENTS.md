@@ -1,4 +1,4 @@
-# Project memory: System Optimizer (v1.5)
+# Project memory: System Optimizer (v1.8)
 
 Auto-loaded by opencode every session. Keep this brief and up to date.
 
@@ -7,9 +7,14 @@ A Windows GUI tool (PowerShell + WinForms) that lets a normal user safely tune
 performance and harden security, with everything reversible.
 
 ## Status
-- Current version: **v1.5.0** (published on GitHub + a v1.5.0 Release).
-- Refactored into modular `lib/`; 9/9 Pester tests pass, PSScriptAnalyzer 0 errors.
-- This folder is the source + build output (exe + msi + lib here).
+- Current version: **v1.8.0** (published on GitHub + a v1.8.0 Release).
+- v1.8 adds the Profile Repair utility (backup/restore/fix profiles) with a guided
+  safe workflow, openable from the Utilities tab (button launches
+  `profile-repair\ProfileRepair-Utility.ps1`).
+- 9/9 Pester tests pass, PSScriptAnalyzer 0 errors.
+- This folder is the source + build output (exe + msi + lib + profile-repair here).
+- **v1.7 is kept untouched**: the v1.7 workspace is `System-Optimizer -V1.4`
+  and the v1.7 ZIP is `D:\System-Optimizer-v1.7.0.zip`.
 - GitHub repo: `github.com/gilbertli2025/System-Optimizer`; USB deploy at `D:\System-Optimizer`.
 - C-drive workspace = DEV + build. D-drive USB = DELIVERABLES ONLY (no source) for testing on other PCs.
 
