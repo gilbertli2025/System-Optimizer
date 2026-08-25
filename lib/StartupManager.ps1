@@ -30,8 +30,7 @@ function Get-StartupStatus([string]$Name, [string]$Location, [string]$Type) {
     if (-not $key) { return 'Enabled' }
     $val = $key.GetValue($Name, $null)
     if ($null -eq $val) { return 'Enabled' }
-    $bytes = [byte[]]$val
-    if ($bytes.Length -gt 0 -and $bytes[0] -eq 2) { return 'Disabled' }
+    if ($val -is [byte[]] -and $val.Length -gt 0 -and $val[0] -eq 2) { return 'Disabled' }
     return 'Enabled'
 }
 

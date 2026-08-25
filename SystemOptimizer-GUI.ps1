@@ -693,6 +693,82 @@ $script:dupMeta = @()
 $script:mainTabs.TabPages.Add($tabUtil) | Out-Null
 $script:utilMode = ''
 
+# --------------------------------------------------------------------------
+# Health Check tab (v1.8) - read-only health score + breakdown, so the user
+# can check health before applying any mode and again afterwards to compare.
+# --------------------------------------------------------------------------
+$tabHealth = New-Object System.Windows.Forms.TabPage
+$tabHealth.Text = 'Health'
+$tabHealth.Padding = New-Object System.Windows.Forms.Padding(8)
+
+$lblHealthTitle = New-Object System.Windows.Forms.Label
+$lblHealthTitle.Text = 'PC Health Check'
+$lblHealthTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+$lblHealthTitle.Location = New-Object System.Drawing.Point(12, 10); $lblHealthTitle.AutoSize = $true
+$tabHealth.Controls.Add($lblHealthTitle) | Out-Null
+
+$script:lblHealthScoreBig = New-Object System.Windows.Forms.Label
+$script:lblHealthScoreBig.Text = '...'; $script:lblHealthScoreBig.AutoSize = $true
+$script:lblHealthScoreBig.Location = New-Object System.Drawing.Point(12, 44)
+$script:lblHealthScoreBig.Font = New-Object System.Drawing.Font('Segoe UI', 26, [System.Drawing.FontStyle]::Bold)
+$tabHealth.Controls.Add($script:lblHealthScoreBig) | Out-Null
+
+$script:lblHealthChecked = New-Object System.Windows.Forms.Label
+$script:lblHealthChecked.Text = 'Checked: -'
+$script:lblHealthChecked.AutoSize = $true
+$script:lblHealthChecked.Location = New-Object System.Drawing.Point(160, 58)
+$script:lblHealthChecked.ForeColor = [System.Drawing.Color]::FromArgb(110,110,110)
+$tabHealth.Controls.Add($script:lblHealthChecked) | Out-Null
+
+$script:lvHealth = New-Object System.Windows.Forms.ListView
+$script:lvHealth.Location = New-Object System.Drawing.Point(12, 100)
+$script:lvHealth.Size = New-Object System.Drawing.Size(850, 360)
+$script:lvHealth.View = 'Details'; $script:lvHealth.FullRowSelect = $true; $script:lvHealth.GridLines = $true
+$script:lvHealth.Columns.Add('Item', 200) | Out-Null
+$script:lvHealth.Columns.Add('Status', 90) | Out-Null
+$script:lvHealth.Columns.Add('Detail', 520) | Out-Null
+$tabHealth.Controls.Add($script:lvHealth) | Out-Null
+
+$btnHealthCheck = New-Object System.Windows.Forms.Button
+$btnHealthCheck.Text = 'Check health now'
+$btnHealthCheck.Size = New-Object System.Drawing.Size(160, 36)
+$btnHealthCheck.Location = New-Object System.Drawing.Point(12, 470)
+$btnHealthCheck.BackColor = [System.Drawing.Color]::FromArgb(223,240,216)
+$btnHealthCheck.Add_Click({ Update-HealthCheckTab })
+$tabHealth.Controls.Add($btnHealthCheck) | Out-Null
+
+$lblHealthHint = New-Object System.Windows.Forms.Label
+$lblHealthHint.Text = "Run 'Check health now' BEFORE you apply any mode, then run it AGAIN afterwards to compare." + [Environment]::NewLine + "Green = OK, orange = warning, red = needs attention. This check is read-only - it changes nothing."
+$lblHealthHint.Location = New-Object System.Drawing.Point(12, 516); $lblHealthHint.Size = New-Object System.Drawing.Size(850, 40)
+$lblHealthHint.ForeColor = [System.Drawing.Color]::FromArgb(80,80,80)
+$tabHealth.Controls.Add($lblHealthHint) | Out-Null
+
+function Update-HealthCheckTab {
+    $h = Get-HealthCheck
+    $script:lblHealthScoreBig.Text = "$($h.Score)/100"
+    if ($h.Score -ge 80) { $script:lblHealthScoreBig.ForeColor = [System.Drawing.Color]::FromArgb(0,140,0) }
+    elseif ($h.Score -ge 50) { $script:lblHealthScoreBig.ForeColor = [System.Drawing.Color]::FromArgb(200,150,0) }
+    else { $script:lblHealthScoreBig.ForeColor = [System.Drawing.Color]::FromArgb(190,30,30) }
+    $script:lblHealthChecked.Text = 'Checked: ' + $h.Checked
+    $script:lvHealth.Items.Clear()
+    foreach ($r in $h.Rows) {
+        $item = New-Object System.Windows.Forms.ListViewItem($r.Name)
+        [void]$item.SubItems.Add($r.Status)
+        [void]$item.SubItems.Add($r.Detail)
+        if ($r.Status -eq 'OK') { $item.ForeColor = [System.Drawing.Color]::Green }
+        elseif ($r.Status -eq 'Warn') { $item.ForeColor = [System.Drawing.Color]::FromArgb(200,150,0) }
+        elseif ($r.Status -eq 'Fail') { $item.ForeColor = [System.Drawing.Color]::Red }
+        $script:lvHealth.Items.Add($item) | Out-Null
+    }
+}
+
+# Add the Health tab and place it second (after Easy). Note: TabPages.Insert()
+# silently fails in PowerShell, so we rebuild the tab order with Add().
+$script:mainTabs.TabPages.Add($tabHealth) | Out-Null
+$tpOrder = @($pageEasy, $tabHealth, $pageAdv, $pageVer, $tabUtil)
+foreach ($tp in $tpOrder) { if ($script:mainTabs.TabPages.Contains($tp)) { $script:mainTabs.TabPages.Remove($tp) | Out-Null } }
+foreach ($tp in $tpOrder) { $script:mainTabs.TabPages.Add($tp) | Out-Null }
+
 # Blue tab strip + light page background so the tabs are easy to read.
 foreach ($tp in $tabs.TabPages) { $tp.BackColor = [System.Drawing.Color]::White }
 $tabs.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
@@ -1618,6 +1694,7 @@ $btnUtilApps.add_Click({
 # Refresh the Easy health card whenever the Easy tab is shown
 $script:mainTabs.add_SelectedIndexChanged({
     if ($script:mainTabs.SelectedTab.Text -eq 'Easy') { Update-EasyHealth; Update-EasyItems }
+    elseif ($script:mainTabs.SelectedTab.Text -eq 'Health') { Update-HealthCheckTab }
 })
 $lblVersion.add_Click({
     for ($i = 0; $i -lt $script:mainTabs.TabPages.Count; $i++) {

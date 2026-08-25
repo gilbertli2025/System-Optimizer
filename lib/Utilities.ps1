@@ -182,6 +182,69 @@ function Get-PcHealthScore {
     return [pscustomobject]@{ Score = $score; Recommendations = @($recs) }
 }
 
+# Full read-only health check with a per-item breakdown (score + reasons).
+# Used by the Health tab so users can compare the score before and after a mode.
+function Get-HealthCheck {
+    $rows = New-Object System.Collections.Generic.List[object]
+    $score = 100
+    $now = Get-Date
+    $fmt = 'yyyy-MM-dd HH:mm'
+    $rows.Add([pscustomobject]@{Name='Checked'; Status='OK'; Detail=$now.ToString($fmt)})
+    try {
+        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        if ($mp -and $mp.RealTimeProtectionEnabled) { $rows.Add([pscustomobject]@{Name='Windows Defender';Status='OK';Detail='Real-time protection is on'}) }
+        else { $score -= 20; $rows.Add([pscustomobject]@{Name='Windows Defender';Status='Fail';Detail='Real-time protection is OFF - turn it on in Windows Security'}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Windows Defender';Status='?';Detail='could not be checked'}) }
+    try {
+        $profiles = @(Get-NetFirewallProfile -ErrorAction SilentlyContinue | Where-Object { $_.Enabled })
+        if ($profiles.Count -ge 1) { $rows.Add([pscustomobject]@{Name='Windows Firewall';Status='OK';Detail='Firewall is on'}) }
+        else { $score -= 15; $rows.Add([pscustomobject]@{Name='Windows Firewall';Status='Fail';Detail='Firewall appears to be OFF - turn it on'}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Windows Firewall';Status='?';Detail='could not be checked'}) }
+    try {
+        $c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+        $freePct = ($c.FreeSpace / $c.Size) * 100
+        if ($freePct -lt 10) { $score -= 25; $rows.Add([pscustomobject]@{Name='Disk space (C:)';Status='Fail';Detail=("{0:N0}% free - free up some space" -f $freePct)}) }
+        elseif ($freePct -lt 20) { $score -= 10; $rows.Add([pscustomobject]@{Name='Disk space (C:)';Status='Warn';Detail=("{0:N0}% free - getting low" -f $freePct)}) }
+        else { $rows.Add([pscustomobject]@{Name='Disk space (C:)';Status='OK';Detail=("{0:N0}% free" -f $freePct)}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Disk space (C:)';Status='?';Detail='could not be checked'}) }
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $used = (($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize) * 100
+        if ($used -gt 90) { $score -= 20; $rows.Add([pscustomobject]@{Name='Memory (RAM)';Status='Fail';Detail=("{0:N0}% in use - close some programs" -f $used)}) }
+        elseif ($used -gt 80) { $score -= 10; $rows.Add([pscustomobject]@{Name='Memory (RAM)';Status='Warn';Detail=("{0:N0}% in use" -f $used)}) }
+        else { $rows.Add([pscustomobject]@{Name='Memory (RAM)';Status='OK';Detail=("{0:N0}% in use" -f $used)}) }
+        $up = (New-TimeSpan -Start $os.LastBootUpTime -End $now).TotalDays
+        if ($up -gt 14) { $score -= 10; $rows.Add([pscustomobject]@{Name='Restart (uptime)';Status='Warn';Detail=("{0:N0} day(s) since restart - a restart can help" -f $up)}) }
+        else { $rows.Add([pscustomobject]@{Name='Restart (uptime)';Status='OK';Detail=("{0:N0} day(s) since restart" -f $up)}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Memory / restart';Status='?';Detail='could not be checked'}) }
+    try {
+        $st = Get-StartupEntries
+        $cnt = $st.Count
+        if ($cnt -gt 10) { $score -= 10; $rows.Add([pscustomobject]@{Name='Startup items';Status='Warn';Detail=("$cnt startup items - consider disabling some")}) }
+        else { $rows.Add([pscustomobject]@{Name='Startup items';Status='OK';Detail=("$cnt startup item(s)")}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Startup items';Status='?';Detail='could not be checked'}) }
+    try {
+        if (Test-UsbPresent) { $rows.Add([pscustomobject]@{Name='Backup USB';Status='OK';Detail='A USB drive is connected'}) }
+        else { $score -= 5; $rows.Add([pscustomobject]@{Name='Backup USB';Status='Warn';Detail='No USB drive - connect one to run One-Click Optimize'}) }
+    } catch { }
+    try {
+        $bi = Get-LastBackupInfo
+        if ($bi) { $bd = $(if ($bi.Date) { $bi.Date } else { 'found' }); $rows.Add([pscustomobject]@{Name='Last backup';Status='OK';Detail=("Settings backup: " + $bd)}) }
+        else { $score -= 5; $rows.Add([pscustomobject]@{Name='Last backup';Status='Warn';Detail='No settings backup found yet'}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Last backup';Status='?';Detail='could not be checked'}) }
+    try {
+        $bad = @(Get-DriveHealth | Where-Object { $_.Status -ne 'Healthy' })
+        if ($bad.Count -eq 0) { $rows.Add([pscustomobject]@{Name='Drive health';Status='OK';Detail='All drives report healthy'}) }
+        else { $score -= 20; $rows.Add([pscustomobject]@{Name='Drive health';Status='Fail';Detail=(($bad | ForEach-Object { $_.Name + ': ' + $_.Status }) -join '; ')}) }
+    } catch { $rows.Add([pscustomobject]@{Name='Drive health';Status='?';Detail='could not be checked'}) }
+    try {
+        if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired') { $score -= 5; $rows.Add([pscustomobject]@{Name='Windows Update';Status='Warn';Detail='Restart pending to finish updates'}) }
+        else { $rows.Add([pscustomobject]@{Name='Windows Update';Status='OK';Detail='No restart pending'}) }
+    } catch { }
+    $score = [math]::Max(0, [math]::Min(100, $score))
+    return [pscustomobject]@{ Score=$score; Rows=$rows.ToArray(); Checked=$now.ToString($fmt) }
+}
+
 # Safe, reversible performance tweaks for a smoother feel.
 function Invoke-PerformanceBoost {
     & powercfg.exe /setactive SCHEME_MIN 2>&1 | Out-Null
